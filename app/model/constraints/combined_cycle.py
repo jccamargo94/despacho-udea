@@ -1,8 +1,4 @@
-
-
 import pyomo.environ as pyo
-
-
 
 
 def exclude_resource_rule(model, combined_cycle, t):

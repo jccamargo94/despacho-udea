@@ -4,7 +4,6 @@ from dateutil.relativedelta import relativedelta
 import pyomo.environ as pyo
 
 
-
 def up_ramps_thermal_gen(model, g: str, t: str) -> pyo.Constraint:
     """
     Upward ramping constraint for thermal generator g at time t.

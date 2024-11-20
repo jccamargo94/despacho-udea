@@ -4,7 +4,9 @@ from dateutil.relativedelta import relativedelta
 import pyomo.environ as pyo
 
 
-def power_generation_decomposition(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+def power_generation_decomposition(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     Power generation decomposition constraint.
 
@@ -20,10 +22,17 @@ def power_generation_decomposition(model: pyo.ConcreteModel, g: pyo.Set | Iterat
     Returns:
         Pyomo Expression object.
     """
-    return model.pout[g, t] == model.power_ramp_up[g, t] + model.power_ramp_down[g, t] + model.p_out_effective[g, t]
+    return (
+        model.pout[g, t]
+        == model.power_ramp_up[g, t]
+        + model.power_ramp_down[g, t]
+        + model.p_out_effective[g, t]
+    )
 
 
-def exclusive_ramp_up_effective_constraint(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+def exclusive_ramp_up_effective_constraint(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     Exclusive ramping up and effective power output constraint.
 
@@ -38,9 +47,12 @@ def exclusive_ramp_up_effective_constraint(model: pyo.ConcreteModel, g: pyo.Set 
     Returns:
         Pyomo Expression (Constraint) object.
     """
-    return model.power_ramp_up[g,t] <= model.Pmin[g,t]*(1 - model.z[g,t])
+    return model.power_ramp_up[g, t] <= model.Pmin[g, t] * (1 - model.z[g, t])
 
-def exclusive_ramp_down_effective_constraint(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+
+def exclusive_ramp_down_effective_constraint(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     Exclusive ramping up and effective power output constraint.
 
@@ -55,10 +67,12 @@ def exclusive_ramp_down_effective_constraint(model: pyo.ConcreteModel, g: pyo.Se
         Pyomo Expression (Constraint) object.
 
     """
-    return model.power_ramp_down[g,t] <= model.Pmin[g,t]*(1 - model.z[g,t])
+    return model.power_ramp_down[g, t] <= model.Pmin[g, t] * (1 - model.z[g, t])
 
 
-def start_up_shut_down_constraints(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+def start_up_shut_down_constraints(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     Start up and shut down constraint.
 
@@ -75,40 +89,51 @@ def start_up_shut_down_constraints(model: pyo.ConcreteModel, g: pyo.Set | Iterat
     """
     if t == model.T.first():
         return pyo.Constraint.Skip
-    return model.zup[g,t] - model.zdown[g,t] == model.z[g,t] - model.z[g,t-relativedelta(hours=1)]
+    return (
+        model.zup[g, t] - model.zdown[g, t]
+        == model.z[g, t] - model.z[g, t - relativedelta(hours=1)]
+    )
 
-def start_up_zero_on_gen(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+
+def start_up_zero_on_gen(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     This constraints ensure that any scheduled generations scheduled in the first period cannot be started up
     """
     if t == model.T.first():
-        return model.zup[g,t] == 0
+        return model.zup[g, t] == 0
     return pyo.Constraint.Skip
-    
-def shutdown_zero_off_gen(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+
+
+def shutdown_zero_off_gen(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     This constraints ensure that any no scheduled generations scheduled in the first period cannot be shutted_down
     """
     if t == model.T.first():
-        return model.zdown[g,t] == 0
+        return model.zdown[g, t] == 0
     return pyo.Constraint.Skip
 
-    
-def start_up_off_gen(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+
+def start_up_off_gen(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     This constraints decide whether a generator should be started up or not based on the previous condition
     """
     if t == model.T.first():
-        return model.zup[g,t] == model.z[g,t]
+        return model.zup[g, t] == model.z[g, t]
     return pyo.Constraint.Skip
 
 
-    
-def shut_down_on_gen(model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator) -> pyo.Expression:
+def shut_down_on_gen(
+    model: pyo.ConcreteModel, g: pyo.Set | Iterator, t: pyo.Set | Iterator
+) -> pyo.Expression:
     """
     This constraints decide whether a generator should be starshuted down or not based on the previous condition
     """
     if t == model.T.first():
-        return model.zdown[g,t] == 1 - model.z[g,t]
+        return model.zdown[g, t] == 1 - model.z[g, t]
     return pyo.Constraint.Skip
-        
