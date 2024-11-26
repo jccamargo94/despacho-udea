@@ -324,7 +324,7 @@ class UnitCommitmentModel:
         return model_solver.solve(
             self._model,
             options=solver_params,
-            tee=True
+            # tee=True
         )
 
     def _create_thermal_feature_constraints(

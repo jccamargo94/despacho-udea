@@ -622,7 +622,13 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
 
     # results = model.solve(solver="cplex", executable="solver/cplex")
 
-    results = model.solve(solver="cplex", tee=True)
+    results = model.solve(solver="cplex")
+    print("...Fixing Var for second solve")
+    for component in model._model.component_data_objects(pyo.Var, active=True):
+        if not component.is_continuous():
+            # print (f"fixing {component}") 
+            component.fix()
+    results = model.solve(solver="cplex")
 
     # # ===== WARNING FIXING VARIABLES =====
     # for gen, model_gen_name in fix_fuel_fired_gen_.items():
@@ -665,7 +671,11 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
         if "power_balance" in ke.name
     }
     # Save the MPO from model
-    mpo_df = pd.DataFrame(data=MPO.values(), index=pd.Index(MPO.keys(), name="datetime"), columns=[f"MPO {config.dispatch_type.value} Modelo"], )
+    mpo_df = pd.DataFrame(
+        data=MPO.values(),
+        index=pd.Index(MPO.keys(), name="datetime"), 
+        columns=[f"MPO {config.dispatch_type.value} Modelo"],
+    )
     mpo_df.to_csv(f"data/results/MPO_{config.dispatch_type.value}_{DISPATCH_DATE}.csv", sep=",")
 
 
@@ -773,7 +783,9 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
         
 
     # Add MPO from XM
-    mpo_df[f"MPO {str(config.dispatch_type.value).replace('bess_','')} XM"] = MPO_CHART["MPO"].values
+    mpo_df[
+        f"MPO {str(config.dispatch_type.value).replace('bess_','')} XM"
+    ] = MPO_CHART["MPO"].values
     if show_figs:
         fig = go.Figure()
         fig.add_trace(

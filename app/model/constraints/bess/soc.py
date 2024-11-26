@@ -94,5 +94,5 @@ def maximize_social_welfare(model: pyo.ConcreteModel) -> pyo.Expression:
         for t in model.T
     )
 
-    # return bess_charge_cost - bess_discharge_cost - gen_cost - start_up_cost - soc_cost
     return bess_charge_cost - bess_discharge_cost - gen_cost - start_up_cost
+    # return - gen_cost - start_up_cost
