@@ -67,11 +67,18 @@ def power_balance_with_bess_rule(
 ) -> pyo.Expression:
     """Power balance constraint"""
     expr = 0
-    if model._dispatch_type in ["bess_preideal", "bess_ideal"]:
+    if "bess" in model._dispatch_type:
         expr = sum(
             model.bess_discharge[b, t] - model.bess_charge[b, t] for b in model.BESS
         )
     return sum(model.pout[i, t] for i in model.I) + expr == model.demand[t]
+
+
+def same_soc_start_and_end(model: pyo.ConcreteModel, b) -> pyo.Expression:
+    "Remain the same soc at start and finish"
+    # return model.soc_bess[b, model.T.first()] == model.soc_bess[b, model.T.last()]
+    # return model.soc_bess[b, model.T.last()] == model.bess_soc_0[b]
+    return pyo.Constraint.Feasible
 
 
 def maximize_social_welfare(model: pyo.ConcreteModel) -> pyo.Expression:
@@ -96,3 +103,26 @@ def maximize_social_welfare(model: pyo.ConcreteModel) -> pyo.Expression:
 
     return bess_charge_cost - bess_discharge_cost - gen_cost - start_up_cost
     # return - gen_cost - start_up_cost
+
+def maximize_social_welfare_as_resource(model: pyo.ConcreteModel) -> pyo.Expression:
+    """
+    Maximize social welfare
+    """
+    gen_cost = sum(model.beta[i] * model.pout[i, t] for i in model.I for t in model.T)
+    start_up_cost = sum(
+        model.cold_start[g] * model.zup[g, t] for g in model.G for t in model.T
+    )
+    # soc_cost = sum(model.bess_soc_bid[b] * model.soc_bess[b,t] for b in model.BESS for t in model.T)
+    # bess_discharge_cost = sum(
+    #     model.bess_discharge_bid[b] * model.bess_discharge[b, t]
+    #     for b in model.BESS
+    #     for t in model.T
+    # )
+    # bess_charge_cost = sum(
+    #     model.bess_charge_bid[b] * model.bess_charge[b, t]
+    #     for b in model.BESS
+    #     for t in model.T
+    # )
+
+    # return bess_charge_cost - bess_discharge_cost - gen_cost - start_up_cost
+    return - gen_cost - start_up_cost

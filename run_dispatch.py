@@ -560,6 +560,8 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
     if config.dispatch_type in [
         DispatchOptions.bess_ideal,
         DispatchOptions.bess_preideal,
+        DispatchOptions.bess_preideal_resource,
+        DispatchOptions.bess_ideal_resource,
     ]:
         set_data.update(**{"BESS": list(BESS.keys())})
         BESS_PARAMS_NAMES = [
@@ -622,13 +624,13 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
 
     # results = model.solve(solver="cplex", executable="solver/cplex")
 
-    results = model.solve(solver="cplex")
-    print("...Fixing Var for second solve")
-    for component in model._model.component_data_objects(pyo.Var, active=True):
-        if not component.is_continuous():
-            # print (f"fixing {component}") 
-            component.fix()
-    results = model.solve(solver="cplex")
+    results = model.solve(solver="cbc")
+    # print("...Fixing Var for second solve")
+    # for component in model._model.component_data_objects(pyo.Var, active=True):
+    #     if not component.is_continuous():
+    #         # print (f"fixing {component}") 
+    #         component.fix()
+    # results = model.solve(solver="cplex")
 
     # # ===== WARNING FIXING VARIABLES =====
     # for gen, model_gen_name in fix_fuel_fired_gen_.items():

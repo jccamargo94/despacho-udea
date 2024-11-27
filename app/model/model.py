@@ -36,6 +36,8 @@ from app.model.constraints.bess.soc import (
     bess_avoid_concurrent_charge_discharge_constraint_rule,
     power_balance_with_bess_rule,
     maximize_social_welfare,
+    maximize_social_welfare_as_resource,
+    same_soc_start_and_end,
 )
 
 
@@ -44,6 +46,8 @@ class DispatchOptions(str, Enum):
     ideal = "ideal"
     bess_preideal = "bess_preideal"
     bess_ideal = "bess_ideal"
+    bess_preideal_resource = "bess_preideal_resource"
+    bess_ideal_resource = "bess_ideal_resource"
 
 
 @dataclass
@@ -311,13 +315,13 @@ class UnitCommitmentModel:
             self._create_thermal_feature_constraints(
                 set_data=set_data, param_data=param_data
             )
-        if self._dispatch_config.dispatch_type == DispatchOptions.bess_preideal:
+        if "bess" in self._dispatch_config.dispatch_type.value:
+            if self._dispatch_config.dispatch_type == DispatchOptions.bess_ideal:
+                self._create_thermal_feature_constraints(
+                    set_data=set_data, param_data=param_data
+                )
             self._add_bess_operation(set_data=set_data, param_data=param_data)
-        if self._dispatch_config.dispatch_type == DispatchOptions.bess_ideal:
-            self._create_thermal_feature_constraints(
-                set_data=set_data, param_data=param_data
-            )
-            self._add_bess_operation(set_data=set_data, param_data=param_data)
+            
 
     def solve(self, solver: str = "appsi_highs", solver_params: dict = {}, **kwargs):
         model_solver = pyo.SolverFactory(solver, **kwargs)
@@ -472,6 +476,11 @@ class UnitCommitmentModel:
         )
 
         # --- Constraints ---
+        self._model.same_soc_start_and_end = pyo.Constraint(
+            self._model.BESS,
+            rule=same_soc_start_and_end,
+            doc=same_soc_start_and_end.__doc__,
+        )
         self._model.compute_soc_bess = pyo.Constraint(
             self._model.BESS,
             self._model.T,
@@ -529,8 +538,15 @@ class UnitCommitmentModel:
         # deactivate all previous constraints objective
         if hasattr(self._model, "objective"):
             self._model.del_component(self._model.objective)
-        self._model.objective = pyo.Objective(
-            rule=maximize_social_welfare,
-            doc=maximize_social_welfare.__doc__,
-            sense=pyo.maximize,
-        )
+        if self._dispatch_config.dispatch_type.value in ["bess_preideal_resource","bess_ideal_resource"]:
+            self._model.objective = pyo.Objective(
+                rule=maximize_social_welfare_as_resource,
+                doc=maximize_social_welfare_as_resource.__doc__,
+                sense=pyo.maximize,
+            )
+        else:
+            self._model.objective = pyo.Objective(
+                rule=maximize_social_welfare,
+                doc=maximize_social_welfare.__doc__,
+                sense=pyo.maximize,
+            )
