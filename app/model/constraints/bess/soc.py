@@ -77,7 +77,8 @@ def power_balance_with_bess_rule(
 def same_soc_start_and_end(model: pyo.ConcreteModel, b) -> pyo.Expression:
     "Remain the same soc at start and finish"
     # return model.soc_bess[b, model.T.first()] == model.soc_bess[b, model.T.last()]
-    # return model.soc_bess[b, model.T.last()] == model.bess_soc_0[b]
+    if "resource" in model._dispatch_type:
+        return model.soc_bess[b, model.T.last()] == model.bess_soc_0[b]
     return pyo.Constraint.Feasible
 
 

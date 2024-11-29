@@ -29,7 +29,7 @@ from app.model import UnitCommitmentModel, DispatchOptions, DispatchConfig
 # DISPATCH_DATE = date(2024,4,18)
 
 
-def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = False, BESS : dict | None = None):
+def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = False, BESS : dict | None = None, DERS: int | None = None):
     CHECK_FOLDER = Path(f"data/{DISPATCH_DATE}")
     if CHECK_FOLDER.is_dir() and CHECK_FOLDER.exists():
         print("... files already downloaded. Skipping download")
@@ -530,6 +530,20 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
 
     ramps = {k: v for k, v in ramps.items() if k in fuel_generators}
 
+
+    # Add ders
+    if DERS:
+        DERS = str(DERS)
+        new_resources_df = pd.read_excel("data/Supuestos Modelo de despacho.xlsx", sheet_name="series")
+        expansion_sources = [col for col in new_resources_df.columns if DERS in col]
+        pmax_new_resources = new_resources_df[expansion_sources]
+        pmax_new_resources.index = pd.Index(pd.to_datetime(DISPATCH_DATE) + pd.to_timedelta(new_resources_df.hours, unit="h"), name="datetime")
+        pmax_new_resources = pmax_new_resources.stack().reset_index()
+        pmax_new_resources.columns = ["datetime", "resource_name", "dispo"]
+        Pmax_model.update(pmax_new_resources.set_index(["resource_name","datetime",]).to_dict()["dispo"])
+        generators = generators.tolist() + expansion_sources
+
+
     set_data = {
         "G": fuel_generators,
         "T": timestamps,
@@ -676,7 +690,7 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
     mpo_df = pd.DataFrame(
         data=MPO.values(),
         index=pd.Index(MPO.keys(), name="datetime"), 
-        columns=[f"MPO {config.dispatch_type.value} Modelo"],
+        columns=[f"MPO {config.dispatch_type.value} Modelo - DERs {DERS}"],
     )
     mpo_df.to_csv(f"data/results/MPO_{config.dispatch_type.value}_{DISPATCH_DATE}.csv", sep=",")
 
