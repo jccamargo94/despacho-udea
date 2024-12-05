@@ -510,7 +510,7 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
     Pmax_model = Pmax.apply(lambda x: np.round(x, 0)).to_dict()
 
     if "preideal" in config.dispatch_type:
-        Pmax_model.update(fixed_fuel_fire_2.to_dict())
+        Pmax_model.update(fixed_fuel_fire_2[fixed_fuel_fire_2.index.get_level_values(0).isin(generators)].to_dict())
 
     # --- RAMPS ---
     with open("data/ramps.json", "r") as file:
@@ -675,7 +675,7 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
         for t in model._model.T
     )
 
-    print(f"f.o.{start_up + gen_cost:,.2f}")
+    # print(f"f.o.{start_up + gen_cost:,.2f}")
 
     mpo_xm = pd.read_csv(
         f"data/{DISPATCH_DATE}/iMAR{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}_NAL.txt",
