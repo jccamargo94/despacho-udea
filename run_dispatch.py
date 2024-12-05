@@ -532,6 +532,8 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
 
 
     # Add ders
+    pmax_new_resources = pd.DataFrame()
+    expansion_sources = list()
     if DERS:
         DERS = str(DERS)
         new_resources_df = pd.read_excel("data/Supuestos Modelo de despacho.xlsx", sheet_name="series")
@@ -904,4 +906,4 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
             }
         )
         fig.show()
-    return mpo_df
+    return mpo_df, model, pmax_new_resources, expansion_sources
