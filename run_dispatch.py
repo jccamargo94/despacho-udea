@@ -144,7 +144,7 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
         (dispo.datetime.dt.date == DISPATCH_DATE) & (dispo["resource_name"].notnull())
     ]
     dispo = dispo.drop_duplicates(subset=["resource_name", "datetime"])
-
+    oferta_full = ofertas.copy()
     ofertas = ofertas[ofertas.Date.dt.date == DISPATCH_DATE]
     agc_asignado = agc_asignado[agc_asignado["datetime"].dt.date == DISPATCH_DATE]
     demanda = demanda[demanda["datetime"].dt.date == DISPATCH_DATE]
@@ -356,6 +356,15 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
     )
 
     # ## 1.6. Generating initial set to model
+        # Thermal gen
+    gen_on = initial_condition_df[initial_condition_df["Gpini-1"] != 0][
+        "Recurso"
+    ].unique()
+    needed_generators = [gen for gen in list(gen_on) if gen not in ofertas.resource_name.unique()]
+    for gen in needed_generators:
+        gen_oferta = oferta_full.query("resource_name == @gen").head(1).reset_index(drop=True)
+        gen_oferta.loc[0,"Date"] = pd.Timestamp(DISPATCH_DATE)
+        ofertas = pd.concat([ofertas, gen_oferta], axis=0)
 
     major_generators = ofertas.resource_name.unique()
     generators = dispo.resource_name.unique()
@@ -366,11 +375,9 @@ def run_dispatch(config: DispatchConfig, DISPATCH_DATE: date, show_figs: bool = 
         & (dispo["gen_type"] == "TERMICA")
     ].resource_name.unique()
 
-    # Thermal gen
-    gen_on = initial_condition_df[initial_condition_df["Gpini-1"] != 0][
-        "Recurso"
-    ].unique()
+
     gen_off = list(set(fuel_generators) - set(gen_on))
+    # Replicate the first condition for needed generators
 
     # ## 1.7. Get startup/shutdown costs
 
