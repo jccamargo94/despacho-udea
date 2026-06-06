@@ -323,13 +323,51 @@ class UnitCommitmentModel:
             self._add_bess_operation(set_data=set_data, param_data=param_data)
             
 
-    def solve(self, solver: str = "appsi_highs", solver_params: dict = {}, **kwargs):
+    def solve(
+        self,
+        solver: str = "appsi_highs",
+        solver_params: dict = {},
+        compute_prices: bool = True,
+        **kwargs,
+    ):
+        """Solve the unit-commitment MILP.
+
+        If ``compute_prices`` is True, run a second "pricing" solve: fix every
+        integer variable to its MILP-optimal value and re-solve the resulting
+        LP so the ``power_balance`` duals are valid marginal prices (MPO). The
+        dual of a MILP is not a meaningful marginal price; this fix-and-resolve
+        is the standard ISO pricing run.
+        """
         model_solver = pyo.SolverFactory(solver, **kwargs)
-        return model_solver.solve(
+        results = model_solver.solve(
             self._model,
             options=solver_params,
             # tee=True
         )
+        if compute_prices:
+            self._solve_pricing_lp(
+                solver=solver, solver_params=solver_params, **kwargs
+            )
+        return results
+
+    def _solve_pricing_lp(
+        self, solver: str = "appsi_highs", solver_params: dict = {}, **kwargs
+    ):
+        """Fix integers to their MILP solution and re-solve as an LP to obtain
+        valid power-balance duals (marginal prices)."""
+        fixed_vars = []
+        for var in self._model.component_data_objects(pyo.Var, active=True):
+            if var.is_continuous() or var.value is None:
+                continue
+            var.fix(round(var.value))
+            fixed_vars.append(var)
+
+        model_solver = pyo.SolverFactory(solver, **kwargs)
+        pricing_results = model_solver.solve(self._model, options=solver_params)
+
+        for var in fixed_vars:
+            var.unfix()
+        return pricing_results
 
     def _create_thermal_feature_constraints(
         self, set_data: dict, param_data: dict
