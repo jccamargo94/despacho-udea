@@ -22,6 +22,7 @@ from app.model import DispatchConfig, DispatchOptions
 from app.data.download import ensure_data_for_date
 from app.data import loaders
 from app.data.ofei import parse_ofei
+from app.data.paths import resolve_input
 
 
 def build_case(
@@ -56,9 +57,7 @@ def build_case(
     precio_bolsa = loaders.load_precio_bolsa(dd)
 
     # --- Parse OFEI ---
-    ofei_path = (
-        f"{dd}/{DISPATCH_DATE}/OFEI{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}.txt"
-    )
+    ofei_path = resolve_input("OFEI", DISPATCH_DATE, dd)
     ofei = parse_ofei(ofei_path, DISPATCH_DATE)
     precio_arranque = ofei.precio_arranque
     minimo_operativo = ofei.minimo_operativo
@@ -124,19 +123,13 @@ def build_case(
     )
 
     # --- Initial conditions ---
-    with open(
-        f"{dd}/{DISPATCH_DATE}/dCondIniP{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}.txt",
-        "r",
-    ) as file:
+    with open(resolve_input("dCondIniP", DISPATCH_DATE, dd), "r") as file:
         data = file.readlines()
         data = [line.strip().split(",") for line in data]
         headers = data.pop(0)
     condicion_inicial_planta = pd.DataFrame(data, columns=headers)
 
-    with open(
-        f"{dd}/{DISPATCH_DATE}/dCondIniU{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}.txt",
-        "r",
-    ) as file:
+    with open(resolve_input("dCondIniU", DISPATCH_DATE, dd), "r") as file:
         data = file.readlines()
         data = [line.strip().split(",") for line in data]
         headers = data.pop(0)
@@ -324,11 +317,8 @@ def build_case(
     )
     agc_indexed = agc_asignado.set_index(["recurso", "datetime"])["agc"] * 1e-3
 
-    demand_pronos = pd.read_csv(
-        f"{dd}/{DISPATCH_DATE}/PrId{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}_NAL.txt",
-        header=None,
-        encoding="latin1",
-    )
+    prid_path = resolve_input("PrId", DISPATCH_DATE, dd)
+    demand_pronos = pd.read_csv(prid_path, header=None, encoding="latin1")
     demand_pronos = demand_pronos.iloc[:, 1:].sum().values
     demand_pronos = dict(zip(demanda["datetime"], demand_pronos))
 
@@ -346,11 +336,7 @@ def build_case(
     z_on_t0_minus_1 = {k: v for k, v in z_on_t0_minus_1.items() if k in fuel_generators}
 
     # --- Fix fuel-fired generators ---
-    fixed_fuel_fire = pd.read_csv(
-        f"{dd}/{DISPATCH_DATE}/PrId{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}_NAL.txt",
-        header=None,
-        encoding="latin1",
-    )
+    fixed_fuel_fire = pd.read_csv(prid_path, header=None, encoding="latin1")
     fixed_fuel_fire.columns = ["generator"] + list(range(24))
     fixed_fuel_fire = fixed_fuel_fire.set_index("generator").stack().reset_index()
     fixed_fuel_fire.columns = ["generator", "hour", "gen"]

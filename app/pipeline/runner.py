@@ -52,7 +52,10 @@ def run_case(
         if evaluate:
             try:
                 xm = load_actual_price(dispatch_date, data_dir=data_dir)
-                model_mpo = list(paths["mpo"].values())
+                # Align by timestamp: dual-suffix iteration order is not
+                # guaranteed chronological, but the MPO keys are the T index
+                # (timestamps) and xm is in hour order.
+                model_mpo = [v for _, v in sorted(paths["mpo"].items())]
                 n = min(len(xm), len(model_mpo))
                 metrics = price_metrics(xm[:n], model_mpo[:n])
                 pd.DataFrame([metrics]).to_csv(

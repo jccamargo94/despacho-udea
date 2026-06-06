@@ -19,6 +19,7 @@ import plotly.graph_objects as go
 
 from app.model import UnitCommitmentModel, DispatchConfig
 from app.pipeline.case_builder import build_case
+from app.data.paths import resolve_input
 
 
 def run_dispatch(
@@ -61,10 +62,7 @@ def run_dispatch(
         for t in model._model.T
     )
 
-    mpo_xm = pd.read_csv(
-        f"data/{DISPATCH_DATE}/iMAR{DISPATCH_DATE.month:0>2}{DISPATCH_DATE.day:0>2}_NAL.txt",
-        header=None,
-    )
+    mpo_xm = pd.read_csv(resolve_input("iMAR", DISPATCH_DATE), header=None)
     mpo_xm = mpo_xm.iloc[0, 1:].values
 
     MPO = {
