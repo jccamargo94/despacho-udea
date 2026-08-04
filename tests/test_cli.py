@@ -3,7 +3,7 @@ from datetime import date
 from typer.testing import CliRunner
 
 import app.cli as cli
-from app.pipeline.runner import CaseResult
+from app.schemas import DispatchCase, DispatchLevel, RunResult
 
 runner = CliRunner()
 
@@ -14,9 +14,10 @@ def _stub_dates(monkeypatch):
 
 def test_run_success(monkeypatch):
     _stub_dates(monkeypatch)
+    case = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal)
     monkeypatch.setattr(
         cli, "run_many",
-        lambda *a, **k: [CaseResult(date(2024, 4, 18), "preideal", True)],
+        lambda *a, **k: [RunResult(case=case, ok=True)],
     )
     result = runner.invoke(cli.app, ["run", "2024-04-18", "-t", "preideal"])
     assert result.exit_code == 0
@@ -25,9 +26,10 @@ def test_run_success(monkeypatch):
 
 def test_run_reports_failure(monkeypatch):
     _stub_dates(monkeypatch)
+    case = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal)
     monkeypatch.setattr(
         cli, "run_many",
-        lambda *a, **k: [CaseResult(date(2024, 4, 18), "preideal", False, error="X")],
+        lambda *a, **k: [RunResult(case=case, ok=False, error="X")],
     )
     result = runner.invoke(cli.app, ["run", "2024-04-18"])
     assert result.exit_code == 1
@@ -36,7 +38,6 @@ def test_run_reports_failure(monkeypatch):
 
 def test_no_dates_selected(monkeypatch):
     monkeypatch.setattr(cli, "_available_dates", lambda data_dir: [])
-    # token resolves to a date not filtered out, but available empty + range form -> empty
     result = runner.invoke(cli.app, ["run", "2024-05-01:2024-05-02"])
     assert result.exit_code == 1
     assert "No dates selected" in result.output
