@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 import os
 
-from app.model import DispatchConfig, DispatchOptions
+from app.schemas import DispatchCase, DispatchLevel
 from app.pipeline.runner import run_many
 
 
@@ -48,12 +48,16 @@ def discover_dates(data_dir: str = "data") -> list[date]:
 
 def main():
     dates_ = [d for d in discover_dates() if d not in SKIP_DATES]
-    configs = [DispatchConfig(dispatch_type=t) for t in DispatchOptions._member_names_]
-    results = run_many(dates_, configs)
+    cases = [
+        DispatchCase(dispatch_date=d, level=lvl)
+        for d in dates_
+        for lvl in DispatchLevel
+    ]
+    results = run_many(cases)
     failed = [r for r in results if not r.ok]
     print(f"\nDone: {len(results) - len(failed)} ok, {len(failed)} failed.")
     for r in failed:
-        print(f"  FAIL {r.dispatch_date} [{r.dispatch_type}]: {r.error}")
+        print(f"  FAIL {r.case.dispatch_date} [{r.case.level.value}]: {r.error}")
 
 
 if __name__ == "__main__":

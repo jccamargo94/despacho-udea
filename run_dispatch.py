@@ -17,21 +17,22 @@ from thefuzz import process, fuzz
 import plotly.express as px
 import plotly.graph_objects as go
 
-from app.model import UnitCommitmentModel, DispatchConfig
+from app.model import UnitCommitmentModel
 from app.pipeline.case_builder import build_case
 from app.data.paths import resolve_input
+from app.schemas.case import DispatchCase
 
 
 def run_dispatch(
-    config: DispatchConfig,
-    DISPATCH_DATE: date,
+    case: DispatchCase,
     show_figs: bool = False,
     BESS: dict | None = None,
     DERS: int | None = None,
 ):
-    set_data, param_data, meta = build_case(
-        DISPATCH_DATE, config, bess=BESS, ders=DERS
-    )
+    from app.schemas.input_pack import InputPack, InputSource
+
+    inputs = InputPack(dispatch_date=case.dispatch_date, source=InputSource.historical, data_dir="data")
+    set_data, param_data, meta = build_case(case, inputs, ders=DERS)
     precio_bolsa = meta["precio_bolsa"]
     CC = meta["CC"]
     initial_condition_df = meta["initial_condition_df"]
@@ -42,7 +43,7 @@ def run_dispatch(
     expansion_sources = meta["expansion_sources"]
 
     # ## 1.9 Solving model
-    model = UnitCommitmentModel(config=config)
+    model = UnitCommitmentModel(case=case)
     model.create_model(set_data=set_data, param_data=param_data)
 
     results = model.solve(solver="cbc")
@@ -62,7 +63,7 @@ def run_dispatch(
         for t in model._model.T
     )
 
-    mpo_xm = pd.read_csv(resolve_input("iMAR", DISPATCH_DATE), header=None)
+    mpo_xm = pd.read_csv(resolve_input("iMAR", case.dispatch_date), header=None)
     mpo_xm = mpo_xm.iloc[0, 1:].values
 
     MPO = {
@@ -74,10 +75,10 @@ def run_dispatch(
     mpo_df = pd.DataFrame(
         data=MPO.values(),
         index=pd.Index(MPO.keys(), name="datetime"),
-        columns=[f"MPO {config.dispatch_type.value} Modelo - DERs {DERS}"],
+        columns=[f"MPO {case.level.value} Modelo - DERs {DERS}"],
     )
     mpo_df.to_csv(
-        f"data/results/MPO_{config.dispatch_type.value}_{DISPATCH_DATE}.csv", sep=","
+        f"data/results/MPO_{case.level.value}_{case.dispatch_date}.csv", sep=","
     )
 
     dispatch = {
@@ -88,7 +89,7 @@ def run_dispatch(
         data=dispatch.values(), index=dispatch.keys(), columns=["dispatch"]
     ).reset_index(drop=False, names=["generador", "datetime"])
     dispatch.to_csv(
-        f"data/results/dispatch_by_gen-{DISPATCH_DATE}-{config.dispatch_type.value}.csv",
+        f"data/results/dispatch_by_gen-{case.dispatch_date}-{case.level.value}.csv",
         sep=",",
         index=False,
     )
@@ -159,15 +160,15 @@ def run_dispatch(
             x="datetime",
             y="error",
             color="generador",
-            title=f"Error de despacho por generador en el {DISPATCH_DATE}",
+            title=f"Error de despacho por generador en el {case.dispatch_date}",
             hover_data=["xm_dispatch", "udea_dispatch"],
         )
         fig.write_html(
-            f"data/results/error_dispatch-{DISPATCH_DATE}-{config.dispatch_type.value}.html"
+            f"data/results/error_dispatch-{case.dispatch_date}-{case.level.value}.html"
         )
         fig.show()
 
-    if "preideal" in config.dispatch_type:
+    if "preideal" in case.level.value:
         MPO_CHART = pd.DataFrame(
             data=mpo_xm, index=precio_bolsa["datetime"], columns=["MPO"]
         )
@@ -180,7 +181,7 @@ def run_dispatch(
 
     # Add MPO from XM
     mpo_df[
-        f"MPO {str(config.dispatch_type.value).replace('bess_','')} XM"
+        f"MPO {str(case.level.value).replace('bess_','')} XM"
     ] = MPO_CHART["MPO"].values
     if show_figs:
         fig = go.Figure()
@@ -189,7 +190,7 @@ def run_dispatch(
                 x=list(MPO.keys()),
                 y=list(MPO.values()),
                 mode="lines",
-                name=f"MPO {config.dispatch_type.value} Modelo",
+                name=f"MPO {case.level.value} Modelo",
             )
         )
         fig.add_trace(
@@ -197,7 +198,7 @@ def run_dispatch(
                 x=MPO_CHART.index,
                 y=MPO_CHART["MPO"],
                 mode="lines",
-                name=f"MPO {str(config.dispatch_type.value).replace('bess_','')} XM",
+                name=f"MPO {str(case.level.value).replace('bess_','')} XM",
                 line={"dash": "dash"},
             )
         )
@@ -210,7 +211,7 @@ def run_dispatch(
         )
         fig.show()
 
-    if "bess" in config.dispatch_type.value and show_figs:
+    if "bess" in case.level.value and show_figs:
         fig = go.Figure()
         for bess_name, bess_params in BESS.items():
             fig.add_traces(
