@@ -18,11 +18,43 @@ import numpy as np
 import pandas as pd
 from thefuzz import process, fuzz
 
-from app.model import DispatchConfig, DispatchOptions
+try:
+    from app.model import DispatchConfig, DispatchOptions
+except ImportError:  # pragma: no cover - app.model dropped these in Task 5;
+    # Task 7 migrates build_case's signature/body to app.schemas.case (DispatchCase).
+    # Stubbed here only so this module (and the new bess_scenario_to_params below)
+    # can still be imported/unit-tested in the meantime.
+    DispatchConfig = DispatchOptions = None
 from app.data.download import ensure_data_for_date
 from app.data import loaders
 from app.data.ofei import parse_ofei
 from app.data.paths import resolve_input
+from app.schemas.bess import BessScenario
+
+
+def bess_scenario_to_params(scenario: BessScenario) -> tuple[list[str], dict]:
+    """Map a BessScenario's units to the pyomo-level set/param dicts consumed
+    by UnitCommitmentModel._add_bess_operation. Mirrors the historical bess
+    dict shape 1:1 (initial_soc/min_soc/max_soc are fractions of mwh_nom;
+    max_charge/max_discharge = mwh_nom / hours_to_deplete)."""
+    names = [u.name for u in scenario.units]
+    params: dict[str, dict] = {
+        "bess_soc_0": {}, "bess_charge_bid": {}, "bess_discharge_bid": {},
+        "bess_min_soc": {}, "bess_max_soc": {}, "efficiency": {},
+        "bess_max_charge": {}, "bess_max_discharge": {},
+    }
+    for u in scenario.units:
+        params["bess_soc_0"][u.name] = u.initial_soc * u.mwh_nom
+        params["bess_min_soc"][u.name] = u.min_soc * u.mwh_nom
+        params["bess_max_soc"][u.name] = u.max_soc * u.mwh_nom
+        params["efficiency"][u.name] = u.efficiency
+        params["bess_max_charge"][u.name] = u.mwh_nom / u.hours_to_deplete
+        params["bess_max_discharge"][u.name] = u.mwh_nom / u.hours_to_deplete
+        if u.charge_bid is not None:
+            params["bess_charge_bid"][u.name] = u.charge_bid
+        if u.discharge_bid is not None:
+            params["bess_discharge_bid"][u.name] = u.discharge_bid
+    return names, params
 
 
 def build_case(
