@@ -10,7 +10,6 @@ It does NOT build or solve the model; callers do that with the returned dicts.
 """
 
 from copy import deepcopy
-from datetime import date
 import json
 import re
 
@@ -18,18 +17,13 @@ import numpy as np
 import pandas as pd
 from thefuzz import process, fuzz
 
-try:
-    from app.model import DispatchConfig, DispatchOptions
-except ImportError:  # pragma: no cover - app.model dropped these in Task 5;
-    # Task 7 migrates build_case's signature/body to app.schemas.case (DispatchCase).
-    # Stubbed here only so this module (and the new bess_scenario_to_params below)
-    # can still be imported/unit-tested in the meantime.
-    DispatchConfig = DispatchOptions = None
 from app.data.download import ensure_data_for_date
 from app.data import loaders
 from app.data.ofei import parse_ofei
 from app.data.paths import resolve_input
 from app.schemas.bess import BessScenario
+from app.schemas.case import DispatchCase, DispatchLevel
+from app.schemas.input_pack import InputPack
 
 
 def bess_scenario_to_params(scenario: BessScenario) -> tuple[list[str], dict]:
@@ -58,12 +52,10 @@ def bess_scenario_to_params(scenario: BessScenario) -> tuple[list[str], dict]:
 
 
 def build_case(
-    dispatch_date: date,
-    config: DispatchConfig,
+    case: DispatchCase,
+    inputs: InputPack,
     *,
-    bess: dict | None = None,
     ders: int | None = None,
-    data_dir: str = "data",
 ) -> tuple[dict, dict, dict]:
     """Return (set_data, param_data, meta) for `UnitCommitmentModel`.
 
@@ -71,15 +63,14 @@ def build_case(
     major_generators, generators, fixed_fuel_fire, pmax_new_resources,
     expansion_sources.
     """
-    DISPATCH_DATE = dispatch_date
-    BESS = bess
+    DISPATCH_DATE = case.dispatch_date
     DERS = ders
-    dd = data_dir
+    dd = inputs.data_dir
 
     ensure_data_for_date(DISPATCH_DATE, data_dir=dd)
 
     # --- Load root CSVs ---
-    if config.dispatch_type == "ideal":
+    if case.level == DispatchLevel.ideal:
         dispo_come = loaders.load_dispo_come(dd)
     dispo = loaders.load_dispo(dd)
     ofertas = loaders.load_ofertas(dd)
@@ -109,7 +100,7 @@ def build_case(
     demanda = demanda[demanda["datetime"].dt.date == DISPATCH_DATE]
     precio_bolsa = precio_bolsa[precio_bolsa["datetime"].dt.date == DISPATCH_DATE]
 
-    if config.dispatch_type == "ideal":
+    if case.level == DispatchLevel.ideal:
         dispo_come = dispo_come[
             (dispo_come.datetime.dt.date == DISPATCH_DATE)
             & (dispo_come["resource_name"].notnull())
@@ -406,7 +397,7 @@ def build_case(
 
     Pmax_model = Pmax.apply(lambda x: np.round(x, 0)).to_dict()
 
-    if "preideal" in config.dispatch_type:
+    if case.level == DispatchLevel.preideal:
         Pmax_model.update(
             fixed_fuel_fire_2[
                 fixed_fuel_fire_2.index.get_level_values(0).isin(generators)
@@ -419,10 +410,10 @@ def build_case(
 
     DEMANDA = (
         demand_pronos
-        if "preideal" in config.dispatch_type
+        if case.level == DispatchLevel.preideal
         else (demanda.set_index("datetime")["dema"] * 1e-3).astype(int)
     )
-    MAX_MIN_OP = 1 if "preideal" in config.dispatch_type else 0
+    MAX_MIN_OP = 1 if case.level == DispatchLevel.preideal else 0
     TMG = (
         parametros_plantas[parametros_plantas["generador"].isin(fuel_generators)]
         .set_index("generador")["TMG"]
@@ -479,51 +470,9 @@ def build_case(
         "max_min_op": MAX_MIN_OP,
     }
 
-    if config.dispatch_type in [
-        DispatchOptions.bess_ideal,
-        DispatchOptions.bess_preideal,
-        DispatchOptions.bess_preideal_resource,
-        DispatchOptions.bess_ideal_resource,
-    ]:
-        set_data.update(**{"BESS": list(BESS.keys())})
-        BESS_PARAMS_NAMES = [
-            "bess_soc_0",
-            "bess_charge_bid",
-            "bess_discharge_bid",
-            "bess_soc_bid",
-            "bess_min_soc",
-            "bess_max_soc",
-            "efficiency",
-            "bess_max_charge",
-            "bess_max_discharge",
-        ]
-        bess_params_model = dict(zip(BESS_PARAMS_NAMES, [{} for _ in BESS_PARAMS_NAMES]))
-        for bess_name, bess_params in BESS.items():
-            bess_params_model["bess_soc_0"].update(
-                **{bess_name: bess_params["initial_soc"] * bess_params["MWh_nom"]}
-            )
-            bess_params_model["bess_charge_bid"].update(
-                **{bess_name: bess_params["charge_bid"]}
-            )
-            bess_params_model["bess_discharge_bid"].update(
-                **{bess_name: bess_params["discharge_bid"]}
-            )
-            bess_params_model["bess_min_soc"].update(
-                **{bess_name: bess_params["min_soc"] * bess_params["MWh_nom"]}
-            )
-            bess_params_model["bess_max_soc"].update(
-                **{bess_name: bess_params["max_soc"] * bess_params["MWh_nom"]}
-            )
-            bess_params_model["efficiency"].update(
-                **{bess_name: bess_params["efficiency"]}
-            )
-            bess_params_model["bess_max_charge"].update(
-                **{bess_name: bess_params["MWh_nom"] / bess_params["hours_to_deplete"]}
-            )
-            bess_params_model["bess_max_discharge"].update(
-                **{bess_name: bess_params["MWh_nom"] / bess_params["hours_to_deplete"]}
-            )
-
+    if case.bess_scenario is not None:
+        bess_names, bess_params_model = bess_scenario_to_params(case.bess_scenario)
+        set_data.update(BESS=bess_names)
         param_data.update(**bess_params_model)
 
     meta = {
