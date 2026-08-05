@@ -1,0 +1,14 @@
+services:
+  cli:
+    build: .
+    volumes:
+      - ./data:/app/data
+    command: ["run"]
+
+  api:
+    build: ./services/api
+    profiles: ["future"]
+
+  worker:
+    build: ./services/worker
+    profiles: ["future"]

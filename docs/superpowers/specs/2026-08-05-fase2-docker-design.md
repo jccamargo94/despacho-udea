@@ -141,21 +141,33 @@ preideal`:
 - `data/precio_bolsa/precio_bolsa_2024.csv` — `datetime`, `precio_bolsa`
   (el loader multiplica x1e3; misma leccion de unidades del bug de Fase 1 —
   MPO se maneja en COP/MWh en todo el pipeline, no en COP/kWh).
-- `data/oferta_inicial/OFEI{MMDD}.txt` — formato fixed-width/latin1 propio,
-  parseado por `app/data/ofei.py::parse_ofei`. Debe producir
-  `precio_arranque` (con al menos una fila `type` conteniendo `"C"` por
-  generador termico, o `case_builder.py:322` revienta con `IndexError` al
-  indexar `.values[0]` en un resultado vacio), `minimo_operativo`, y puede
-  dejar `cc`/`cc_price`/`cc_dispo` vacios (`{}`) sin problema — **verificado
-  por ejecucion directa**: `pd.DataFrame({}).stack().reset_index()` seguido
-  del resto del bloque de sintesis de CC (case_builder.py:194-214) no
-  revienta con diccionarios vacios. Esto significa que el fixture **no
-  necesita ningun recurso de ciclo combinado** — 2-3 generadores termicos
-  simples bastan, evitando toda la rama `CC_MAP`/`dcondIniPlant` (y con
-  ella, los tres mapeos de nombres hardcodeados en `case_builder.py`
-  ["FLORES IV", "TSIERRA", "GUAJIR21"], que son fallbacks `.get(x, x)` sin
-  efecto si esos nombres no aparecen en los datos — no hay ninguna razon
-  para reproducirlos en un fixture sintetico).
+- `data/oferta_inicial/OFEI{MMDD}.txt` — texto plano separado por comas,
+  parseado linea por linea con matching de substrings (`app/data/
+  ofei.py::parse_ofei`, no es fixed-width), abierto sin encoding explicito
+  (`open(path, "r")` — locale por defecto, utf-8 en este entorno; distinto
+  de `PrId`, que si usa `encoding="latin1"` explicito — no asumir el mismo
+  encoding para los dos archivos, son formatos y aperturas independientes).
+  Lineas reconocidas por contenido: `"PAP" in line` -> precio de arranque
+  (`resource,type,price`, filtra `"usd" in line.lower()`); `"MO" in line`
+  con `mo_line[1]` conteniendo `"MO"` -> perfil de minimo operativo
+  (`resource,type,` + 24 columnas horarias); lineas con patron `P(\d+)` y
+  `"CC" in line` -> precio de ciclo combinado; patron `DISCONF(\d+)` y `"CC"
+  in line` -> disponibilidad de ciclo combinado; lineas con exactamente 3
+  campos, `" P" in campo[1]`, sin `"u"`/`"a"` en `campo[1].lower()` -> precio
+  de oferta simple. El fixture debe producir al menos una fila `precio_
+  arranque` con `type` conteniendo `"C"` por generador termico (o
+  `case_builder.py:322` revienta con `IndexError` al indexar `.values[0]`
+  en un resultado vacio) y filas `MO` para `minimo_operativo`. Puede dejar
+  `cc`/`cc_price`/`cc_dispo` vacios (`{}`) sin problema — **verificado por
+  ejecucion directa**: `pd.DataFrame({}).stack().reset_index()` seguido del
+  resto del bloque de sintesis de CC (case_builder.py:194-214) no revienta
+  con diccionarios vacios. Esto significa que el fixture **no necesita
+  ningun recurso de ciclo combinado** — 2-3 generadores termicos simples
+  bastan, evitando toda la rama `CC_MAP`/`dcondIniPlant` (y con ella, los
+  tres mapeos de nombres hardcodeados en `case_builder.py` ["FLORES IV",
+  "TSIERRA", "GUAJIR21"], que son fallbacks `.get(x, x)` sin efecto si esos
+  nombres no aparecen en los datos — no hay ninguna razon para reproducirlos
+  en un fixture sintetico).
 - `data/condicion_inicial/{fecha}/dCondIniP{MMDD}.txt` y `dCondIniU{MMDD}
   .txt` — CSV simple con headers en la primera linea (`open().readlines()`
   + split manual, no `pd.read_csv`).
