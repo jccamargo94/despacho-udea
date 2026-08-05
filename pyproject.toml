@@ -1,0 +1,38 @@
+[project]
+name = "despacho-udea"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas==2.2.2",
+    "numpy==1.26.4",
+    "Pyomo==6.7.3",
+    "highspy==1.7.2",
+    "thefuzz==0.22.1",
+    "rapidfuzz==3.9.6",
+    "typer>=0.12",
+    "requests",
+    "plotly==5.23.0",
+    "openpyxl==3.1.5",
+    "xlrd==2.0.1",
+    "pydantic==1.10.18",
+    "PyYAML==6.0.1",
+    "pydataxm==0.3.6",
+]
+
+[project.optional-dependencies]
+notebooks = [
+    "scikit-learn==1.4.2",
+    "matplotlib==3.9.1",
+    "holidays",
+    "cloudpickle",
+    "jupyterlab==4.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff==0.11.13",
+]
+
+[tool.uv]
+package = false
