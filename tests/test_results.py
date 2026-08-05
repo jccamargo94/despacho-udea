@@ -11,7 +11,7 @@ from app.model.model import UnitCommitmentModel
 from app.pipeline.case_builder import bess_scenario_to_params
 from app.schemas import DispatchCase, DispatchLevel
 from app.schemas.bess import BessMode, BessScenario, BessUnit
-from app.pipeline.results import extract_mpo, extract_dispatch, save_results
+from app.pipeline.results import extract_mpo, extract_dispatch, extract_bess, save_results
 
 
 def _toy_model():
@@ -107,11 +107,38 @@ def test_save_results_writes_bess_csv_and_summary(tmp_path):
     mpo = extract_mpo(m)
     price = list(mpo.values())[0]
     row = df.iloc[0]
+    # toy scenario's optimum is discharge-only (demand=80 > gen A alone would
+    # cover, BESS discharges to help meet it); pin that precondition so a
+    # future change to demand/bids that flips it to charge=0/discharge=0
+    # can't silently turn the formula checks below into 0==0 tautologies.
+    assert row["discharge"] > 0
+    assert row["charge"] == 0
     assert abs(row["revenue"] - row["discharge"] * price * 1000.0) < 1e-6
     assert abs(row["cost"] - row["charge"] * price * 1000.0) < 1e-6
 
     assert result.bess_summary is not None
     assert abs(result.bess_summary["bess_net_revenue"] - (df["revenue"] - df["cost"]).sum()) < 1e-6
+
+
+def test_extract_bess_cost_formula_with_nonzero_charge():
+    """test_save_results_writes_bess_csv_and_summary's toy LP always lands on
+    charge=0, so its cost assertion never actually exercises the cost
+    formula. Call extract_bess directly with a stubbed model where charge is
+    nonzero to cover that branch of the formula for real."""
+    class _Inner:
+        bess_charge = {("B1", 1): 5.0}
+        bess_discharge = {("B1", 1): 0.0}
+        soc_bess = {("B1", 1): 20.0}
+
+    class _Model:
+        _model = _Inner()
+
+    mpo = {1: 42.0}
+    df = extract_bess(_Model(), mpo)
+    row = df.iloc[0]
+    assert row["charge"] == 5.0
+    assert row["revenue"] == 0.0
+    assert abs(row["cost"] - 5.0 * 42.0 * 1000.0) < 1e-6
 
 
 def test_save_results_without_bess_scenario_has_no_bess_fields(tmp_path):
