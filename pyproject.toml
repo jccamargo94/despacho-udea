@@ -33,6 +33,7 @@ dev = [
     "pytest",
     "ruff==0.11.13",
     "pre-commit==4.6.1",
+    "ty==0.0.66",
 ]
 
 [tool.uv]
@@ -41,6 +42,7 @@ package = false
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+extend-exclude = ["*.ipynb", "run_dispatch.py", "get_date_results.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
