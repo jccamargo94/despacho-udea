@@ -323,7 +323,7 @@ class UnitCommitmentModel:
 
     def solve(
         self,
-        solver: str = "appsi_highs",
+        solver: str = "cbc",
         solver_params: dict = {},
         compute_prices: bool = True,
         **kwargs,
@@ -349,7 +349,7 @@ class UnitCommitmentModel:
         return results
 
     def _solve_pricing_lp(
-        self, solver: str = "appsi_highs", solver_params: dict = {}, **kwargs
+        self, solver: str = "cbc", solver_params: dict = {}, **kwargs
     ):
         """Fix integers to their MILP solution and re-solve as an LP to obtain
         valid power-balance duals (marginal prices)."""
