@@ -1,90 +1,74 @@
 """Orchestrate dispatch runs: ensure data -> build -> solve -> save -> evaluate.
 
-Per-case failures are isolated: one bad date/type does not abort the batch.
+Per-case failures are isolated: one bad case does not abort the batch.
 """
-
-from dataclasses import dataclass, field
-from datetime import date
 import traceback
 
 import pandas as pd
 
-from app.model import UnitCommitmentModel, DispatchConfig
+from app.model.model import UnitCommitmentModel
+from app.schemas import DispatchCase, InputPack, InputSource, RunResult
 from app.pipeline.case_builder import build_case
-from app.pipeline.results import save_results
+from app.pipeline.results import save_results, extract_mpo
 from app.data.actuals import load_actual_price
 from app.utils.metrics import price_metrics
 
 
-@dataclass
-class CaseResult:
-    dispatch_date: date
-    dispatch_type: str
-    ok: bool
-    paths: dict = field(default_factory=dict)
-    metrics: dict | None = None
-    error: str | None = None
-
-
 def run_case(
-    dispatch_date: date,
-    config: DispatchConfig,
+    case: DispatchCase,
     *,
-    solver: str = "cbc",
-    compute_prices: bool = True,
     evaluate: bool = True,
-    bess: dict | None = None,
+    input_source: InputSource = InputSource.historical,
     ders: int | None = None,
     out: str = "data/results",
     data_dir: str = "data",
-) -> CaseResult:
-    t = config.dispatch_type.value
+) -> RunResult:
+    t = case.level.value
     try:
-        set_data, param_data, _meta = build_case(
-            dispatch_date, config, bess=bess, ders=ders, data_dir=data_dir
-        )
-        model = UnitCommitmentModel(config=config)
+        inputs = InputPack(dispatch_date=case.dispatch_date, source=input_source, data_dir=data_dir)
+        set_data, param_data, _meta = build_case(case, inputs, ders=ders)
+        model = UnitCommitmentModel(case=case)
         model.create_model(set_data=set_data, param_data=param_data)
-        model.solve(solver=solver, compute_prices=compute_prices)
-        paths = save_results(model, dispatch_date, config, out=out)
+        model.solve(solver=case.solver, compute_prices=case.compute_prices)
+        result = save_results(model, case, out=out)
 
-        metrics = None
         if evaluate:
             try:
-                xm = load_actual_price(dispatch_date, data_dir=data_dir)
-                # Align by timestamp: dual-suffix iteration order is not
-                # guaranteed chronological, but the MPO keys are the T index
-                # (timestamps) and xm is in hour order.
-                model_mpo = [v for _, v in sorted(paths["mpo"].items())]
+                xm = load_actual_price(case.dispatch_date, data_dir=data_dir)
+                model_mpo = extract_mpo_sorted(model)
                 n = min(len(xm), len(model_mpo))
                 metrics = price_metrics(xm[:n], model_mpo[:n])
-                pd.DataFrame([metrics]).to_csv(
-                    f"{out}/metrics-{dispatch_date}-{t}.csv", index=False
-                )
+                metrics_path = f"{out}/metrics-{case.dispatch_date}-{t}.csv"
+                pd.DataFrame([metrics]).to_csv(metrics_path, index=False)
+                result.metrics = metrics
+                result.metrics_path = metrics_path
             except FileNotFoundError:
-                print(f"  ! no XM actuals for {dispatch_date}; skipping metrics")
+                print(f"  ! no XM actuals for {case.dispatch_date}; skipping metrics")
 
-        return CaseResult(dispatch_date, t, True, paths=paths, metrics=metrics)
+        return result
     except Exception as e:
         traceback.print_exc()
-        return CaseResult(dispatch_date, t, False, error=f"{type(e).__name__}: {e}")
+        return RunResult(case=case, ok=False, error=f"{type(e).__name__}: {e}")
+
+
+def extract_mpo_sorted(model) -> list[float]:
+    mpo = extract_mpo(model)
+    return [v for _, v in sorted(mpo.items())]
 
 
 def run_many(
-    dates: list[date],
-    configs: list[DispatchConfig],
+    cases: list[DispatchCase],
     *,
     out: str = "data/results",
     **kw,
-) -> list[CaseResult]:
-    results: list[CaseResult] = []
-    for d in dates:
-        for cfg in configs:
-            print(f"==> {d} [{cfg.dispatch_type.value}]")
-            results.append(run_case(d, cfg, out=out, **kw))
+) -> list[RunResult]:
+    results: list[RunResult] = []
+    for case in cases:
+        print(f"==> {case.dispatch_date} [{case.level.value}]")
+        results.append(run_case(case, out=out, **kw))
 
     rows = [
-        {"date": r.dispatch_date, "type": r.dispatch_type, **r.metrics}
+        {"date": r.case.dispatch_date, "type": r.case.level.value, **r.metrics}
         for r in results
         if r.ok and r.metrics
     ]

@@ -3,8 +3,10 @@
 Cheap gen A (beta=10, Pmax=100), expensive B (beta=50). demand=150 -> A=100,
 B=50; marginal unit is B so MPO should equal B's cost (50).
 """
+from datetime import date
 
-from app.model import UnitCommitmentModel, DispatchConfig
+from app.model.model import UnitCommitmentModel
+from app.schemas import DispatchCase, DispatchLevel
 from app.pipeline.results import extract_mpo, extract_dispatch, save_results
 
 
@@ -20,21 +22,22 @@ def _toy_model():
         "beta": {"A": 10.0, "B": 50.0}, "cold_start": {},
         "demand": {1: 150.0}, "TMG": {}, "Ton": {}, "z_on_t0_minus_1": {},
     }
-    m = UnitCommitmentModel(config=DispatchConfig(dispatch_type="preideal"))
+    case = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal)
+    m = UnitCommitmentModel(case=case)
     m.create_model(set_data=set_data, param_data=param_data)
     m.solve(solver="cbc")
-    return m
+    return m, case
 
 
 def test_extract_mpo_is_marginal_cost():
-    m = _toy_model()
+    m, _ = _toy_model()
     mpo = extract_mpo(m)
     assert len(mpo) == 1
     assert abs(list(mpo.values())[0] - 50.0) < 1e-6
 
 
 def test_extract_dispatch_rows():
-    m = _toy_model()
+    m, _ = _toy_model()
     df = extract_dispatch(m)
     assert set(df.columns) == {"generador", "datetime", "dispatch"}
     by_gen = df.set_index("generador")["dispatch"].to_dict()
@@ -43,8 +46,9 @@ def test_extract_dispatch_rows():
 
 
 def test_save_results_writes_csvs(tmp_path):
-    m = _toy_model()
-    paths = save_results(m, "2024-04-18", DispatchConfig("preideal"), out=str(tmp_path))
-    assert (tmp_path / "dispatch_by_gen-2024-04-18-preideal.csv").exists()
-    assert (tmp_path / "marginal_price-2024-04-18-preideal.csv").exists()
-    assert abs(list(paths["mpo"].values())[0] - 50.0) < 1e-6
+    m, case = _toy_model()
+    result = save_results(m, case, out=str(tmp_path))
+    assert (tmp_path / f"dispatch_by_gen-{case.dispatch_date}-{case.level.value}.csv").exists()
+    assert (tmp_path / f"marginal_price-{case.dispatch_date}-{case.level.value}.csv").exists()
+    assert result.ok is True
+    assert result.dispatch_path is not None

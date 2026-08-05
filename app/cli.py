@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from app.model import DispatchConfig, DispatchOptions
+from app.schemas import DispatchCase, DispatchLevel
 from app.dates import parse_dates_arg
 from app.pipeline.runner import run_many
 
@@ -47,7 +47,7 @@ def run(
         None, help="YYYY-MM-DD | range a:b | YYYY-MM | omit = all available"
     ),
     type: list[str] = typer.Option(
-        ["preideal"], "--type", "-t", help="dispatch type, repeatable, or 'all'"
+        ["preideal"], "--type", "-t", help="dispatch level (preideal/ideal), repeatable, or 'all'"
     ),
     solver: str = typer.Option("cbc", help="pyomo solver name"),
     eval: bool = typer.Option(True, "--eval/--no-eval", help="evaluate vs XM actuals"),
@@ -63,27 +63,23 @@ def run(
     skip = _parse_skip(skip_dates)
     selected = [d for d in selected if d not in skip]
 
-    types = DispatchOptions._member_names_ if "all" in type else type
-    configs = [DispatchConfig(dispatch_type=t) for t in types]
+    levels = list(DispatchLevel) if "all" in type else [DispatchLevel(t) for t in type]
+    cases = [
+        DispatchCase(dispatch_date=d, level=lvl, solver=solver, compute_prices=prices)
+        for d in selected
+        for lvl in levels
+    ]
 
-    if not selected:
+    if not cases:
         typer.echo("No dates selected.")
         raise typer.Exit(code=1)
 
     typer.echo(
-        f"Running {len(selected)} date(s) x {len(configs)} type(s) with solver={solver}"
+        f"Running {len(selected)} date(s) x {len(levels)} level(s) with solver={solver}"
     )
-    results = run_many(
-        selected,
-        configs,
-        solver=solver,
-        compute_prices=prices,
-        evaluate=eval,
-        out=out,
-        data_dir=data_dir,
-    )
+    results = run_many(cases, evaluate=eval, out=out, data_dir=data_dir)
     failed = [r for r in results if not r.ok]
     typer.echo(f"\nDone: {len(results) - len(failed)} ok, {len(failed)} failed.")
     for r in failed:
-        typer.echo(f"  FAIL {r.dispatch_date} [{r.dispatch_type}]: {r.error}")
+        typer.echo(f"  FAIL {r.case.dispatch_date} [{r.case.level.value}]: {r.error}")
     raise typer.Exit(code=1 if failed else 0)

@@ -1,6 +1,4 @@
-from dataclasses import dataclass
 from datetime import date
-from enum import Enum
 
 import pyomo.environ as pyo
 
@@ -41,28 +39,28 @@ from app.model.constraints.bess.soc import (
 )
 
 
-class DispatchOptions(str, Enum):
-    preideal = "preideal"
-    ideal = "ideal"
-    bess_preideal = "bess_preideal"
-    bess_ideal = "bess_ideal"
-    bess_preideal_resource = "bess_preideal_resource"
-    bess_ideal_resource = "bess_ideal_resource"
-
-
-@dataclass
-class DispatchConfig:
-    dispatch_type: DispatchOptions
-
-    def __init__(self, dispatch_type: str):
-        self.dispatch_type = DispatchOptions(dispatch_type)
+from app.schemas.case import DispatchCase, DispatchLevel
+from app.schemas.bess import BessMode
 
 
 class UnitCommitmentModel:
-    def __init__(self, config: DispatchConfig):
+    def __init__(self, case: DispatchCase):
         self._model = pyo.ConcreteModel()
-        self._dispatch_config = config
-        self._model._dispatch_type = config.dispatch_type.value
+        self._dispatch_case = case
+        self._model._dispatch_type = self._legacy_type_tag(case)
+
+    @staticmethod
+    def _legacy_type_tag(case: DispatchCase) -> str:
+        """Reconstruct the old DispatchOptions string ("bess_ideal_resource",
+        etc.) for app/model/constraints/bess/soc.py, which still does
+        substring matching on model._dispatch_type. Out of scope to refactor
+        those rule functions in this change."""
+        tag = case.level.value
+        if case.bess_scenario is not None:
+            tag = f"bess_{tag}"
+            if case.bess_scenario.mode == BessMode.grid_asset:
+                tag += "_resource"
+        return tag
 
     def load_data(self, folder: str, date: date) -> None: ...
 
@@ -311,17 +309,17 @@ class UnitCommitmentModel:
         self._create_variables()
         self._create_objective()
         self._create_constraints()
-        if self._dispatch_config.dispatch_type == DispatchOptions.ideal:
+        case = self._dispatch_case
+        if case.level == DispatchLevel.ideal:
             self._create_thermal_feature_constraints(
                 set_data=set_data, param_data=param_data
             )
-        if "bess" in self._dispatch_config.dispatch_type.value:
-            if self._dispatch_config.dispatch_type == DispatchOptions.bess_ideal:
-                self._create_thermal_feature_constraints(
-                    set_data=set_data, param_data=param_data
+        if case.bess_scenario is not None:
+            if case.bess_scenario.mode == BessMode.generator:
+                raise NotImplementedError(
+                    "BESS mode 'generator' has no Pyomo formulation yet"
                 )
             self._add_bess_operation(set_data=set_data, param_data=param_data)
-            
 
     def solve(
         self,
@@ -576,7 +574,7 @@ class UnitCommitmentModel:
         # deactivate all previous constraints objective
         if hasattr(self._model, "objective"):
             self._model.del_component(self._model.objective)
-        if self._dispatch_config.dispatch_type.value in ["bess_preideal_resource","bess_ideal_resource"]:
+        if self._dispatch_case.bess_scenario.mode == BessMode.grid_asset:
             self._model.objective = pyo.Objective(
                 rule=maximize_social_welfare_as_resource,
                 doc=maximize_social_welfare_as_resource.__doc__,
