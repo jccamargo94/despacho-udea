@@ -1,0 +1,12 @@
+mode: arbitrage
+penetration_level: "20pct"
+units:
+  - name: BESS1
+    mwh_nom: 200.0
+    hours_to_deplete: 4.0
+    initial_soc: 0.5
+    min_soc: 0.1
+    max_soc: 0.9
+    efficiency: 0.9
+    charge_bid: 20.0
+    discharge_bid: 180.0
