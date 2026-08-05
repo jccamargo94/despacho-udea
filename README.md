@@ -141,6 +141,10 @@ docs/
 tests/               # suite pytest
 data/                # insumos y resultados; git-ignored
 solver/              # artefactos locales del solver; git-ignored
+
+Dockerfile           # imagen runtime (CBC + deps, sin data/ ni notebooks)
+docker-compose.yml   # servicio cli + placeholders api/worker (Fase 3)
+.dockerignore
 ```
 
 ---
@@ -174,6 +178,24 @@ Verificacion basica:
 ```bash
 uv run python -c "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
 uv run pytest -q
+```
+
+### Con Docker (alternativa a instalacion local)
+
+Requiere Docker. No necesita `uv` ni CBC instalados en el host — ambos
+viven dentro de la imagen.
+
+```bash
+docker build -t despacho-udea .
+docker run --rm --entrypoint uv despacho-udea run --no-sync python -c \
+  "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
+```
+
+Para correr contra datos reales, montar `data/` como volumen (ver
+`docker-compose.yml`, servicio `cli`):
+
+```bash
+docker compose run --rm cli run 2024-04-18 -t preideal
 ```
 
 ---
@@ -286,6 +308,12 @@ print(res.ok, res.metrics)
 
 `run_dispatch.run_dispatch(...)` se conserva para notebooks y compatibilidad.
 
+Mismo comando via Docker (ver seccion 6):
+
+```bash
+docker compose run --rm cli run 2024-04-18 -t preideal
+```
+
 ---
 
 ## 9. Resultados
@@ -345,7 +373,6 @@ comparativas contra los scripts previos.
 - Los modos BESS no estan modelados aun como una interfaz de escenario clara.
 - Falta una salida BESS completa: carga, descarga, SOC, pagos/remuneracion y
   comparaciones por escenario.
-- No existe todavia Dockerfile ni `docker-compose.yml`.
 - No existe backend HTTP ni frontend.
 - No existe persistencia de ejecuciones, metadatos, artefactos y logs.
 - Los supuestos para correr semanas futuras no estan formalizados en modulos de
