@@ -28,6 +28,41 @@ def extract_dispatch(model) -> pd.DataFrame:
     ).reset_index(drop=False, names=["generador", "datetime"])
 
 
+def extract_bess(model, mpo: dict) -> pd.DataFrame:
+    """Per-unit x hour BESS activity, settled at the system marginal price
+    (MPO), not at the unit's own bid: the bid is an optimization input, and
+    grid_asset units often have no bids at all. revenue/cost are in COP
+    (energy in MWh x price in COP/kWh x 1000 kWh/MWh)."""
+    charge = {(b, t): pyo.value(v) for (b, t), v in model._model.bess_charge.items()}
+    discharge = {(b, t): pyo.value(v) for (b, t), v in model._model.bess_discharge.items()}
+    soc = {(b, t): pyo.value(v) for (b, t), v in model._model.soc_bess.items()}
+
+    rows = []
+    for key in sorted(charge.keys()):
+        b, t = key
+        price = mpo.get(t, 0.0)
+        c, d = charge[key], discharge[key]
+        rows.append({
+            "unit": b,
+            "datetime": t,
+            "charge": c,
+            "discharge": d,
+            "soc": soc[key],
+            "revenue": d * price * 1000.0,
+            "cost": c * price * 1000.0,
+        })
+    return pd.DataFrame(rows)
+
+
+def _bess_summary(bess_df: pd.DataFrame) -> dict[str, float]:
+    return {
+        "bess_charge_mwh": float(bess_df["charge"].sum()),
+        "bess_discharge_mwh": float(bess_df["discharge"].sum()),
+        "bess_avg_soc": float(bess_df["soc"].mean()),
+        "bess_net_revenue": float((bess_df["revenue"] - bess_df["cost"]).sum()),
+    }
+
+
 def save_results(model, case: DispatchCase, out: str = "data/results") -> RunResult:
     storage = get_storage(out)
     t = case.level.value
@@ -44,9 +79,21 @@ def save_results(model, case: DispatchCase, out: str = "data/results") -> RunRes
             data=mpo.values(), index=mpo.keys(), columns=["ideal_marginal_price"]
         ).reset_index(drop=False, names=["datetime"]).to_csv(f, sep=",", index=False)
 
+    bess_path = None
+    bess_summary = None
+    if case.bess_scenario is not None:
+        bess_df = extract_bess(model, mpo)
+        bess_name = f"bess_results-{case.dispatch_date}-{t}.csv"
+        with storage.open(bess_name, "w") as f:
+            bess_df.to_csv(f, sep=",", index=False)
+        bess_path = f"{out}/{bess_name}"
+        bess_summary = _bess_summary(bess_df)
+
     return RunResult(
         case=case,
         ok=True,
         dispatch_path=f"{out}/{dispatch_name}",
         price_path=f"{out}/{price_name}",
+        bess_path=bess_path,
+        bess_summary=bess_summary,
     )
