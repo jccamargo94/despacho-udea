@@ -1,189 +1,272 @@
-# despacho-udea — Colombian Electricity Dispatch Model
+# despacho-udea — modelo academico de despacho electrico colombiano
 
-Optimal-dispatch model for the Colombian electricity system, plus tooling to
-download the market data and to evaluate the model against the market operator
-(XM). This document is the single entry point for **both humans and AI agents**.
-Read it fully before changing anything.
+Repositorio academico para aproximar el despacho electrico colombiano, comparar
+resultados contra informacion publicada por XM y estudiar el efecto de incorporar
+BESS (Battery Energy Storage Systems) bajo distintos modos de participacion.
 
----
-
-## 1. What this project does
-
-Two things:
-
-1. **Download historical data** for the Colombian electricity market from XM.
-2. **Solve an optimal dispatch** with [pyomo](https://www.pyomo.org/) and compare
-   the result against XM's published dispatch and marginal price.
-
-There are several model variants (see `DispatchOptions` in
-[app/model/model.py](app/model/model.py)):
-
-| dispatch_type            | meaning |
-|--------------------------|---------|
-| `preideal`               | Pre-dispatch: classical economic dispatch against the **demand forecast** (PrId). No ramp/min-up-down commitment constraints. Fast. The primary case. |
-| `ideal`                  | Ideal dispatch: adds thermal commitment features (ramps, minimum on-line time, startup/shutdown). Slower, needs more data. |
-| `bess_preideal`, `bess_ideal` | Same, plus a Battery Energy Storage System (BESS). |
-| `bess_preideal_resource`, `bess_ideal_resource` | BESS modelled as a market resource (social-welfare objective). |
-
-### Key domain concepts
-
-- **MPO (Marginal Price of Operation):** the dual of the `power_balance`
-  constraint = the system marginal price. We compare model MPO against XM's MPO.
-- **MILP → pricing LP (important):** the model has binary commitment variables
-  (`z`), so it is a MILP. The dual of a MILP is **not** a valid marginal price.
-  `UnitCommitmentModel.solve(..., compute_prices=True)` (the default) therefore
-  runs a second "pricing" solve: it fixes the integer variables to their MILP
-  optimum and re-solves the LP, so the `power_balance` duals are valid prices.
-  This is the standard ISO pricing run. Do **not** read prices from a raw MILP
-  solve.
-- **Evaluation metrics:** in [app/utils/metrics.py](app/utils/metrics.py). Use
-  RMSE / MAE / bias (COP/kWh) and WAPE/sMAPE. **MAPE is deliberately avoided** —
-  the hydro-dominated system drives MPO near zero, which makes MAPE explode.
+Este README es el punto de entrada para humanos y agentes de IA. Antes de hacer
+cambios, lea especialmente las secciones de estado actual, datos requeridos y
+brechas conocidas.
 
 ---
 
-## 2. Repository map
+## 1. Vision del proyecto
 
-```
+El proyecto parte de tres ideas:
+
+1. Construir un **predespacho ideal** con menos restricciones, que produzca un
+   precio marginal comparable con referencias de predespacho publicadas por XM.
+2. Construir un **despacho ideal** con mas restricciones tecnicas, como
+   aproximacion al proceso que determina el precio real de bolsa.
+3. Evaluar como cambia el despacho y el precio cuando se agregan baterias BESS
+   en distintos niveles de penetracion y con distintas reglas de participacion.
+
+La meta de largo plazo es convertir los scripts y notebooks actuales en una
+aplicacion dockerizada, reproducible y operable, con frontend, backend, worker de
+ejecucion, almacenamiento de resultados y configuracion de escenarios.
+
+La hoja de ruta extendida esta en
+[docs/roadmap-aplicacion-despacho.md](docs/roadmap-aplicacion-despacho.md).
+
+---
+
+## 2. Que existe hoy
+
+Hoy el repositorio ya no es solo una coleccion de notebooks. Existe una primera
+extraccion hacia una aplicacion Python:
+
+- `app/model/`: modelo Pyomo y restricciones del despacho.
+- `app/data/`: carga, descarga y parsing de insumos.
+- `app/pipeline/`: construccion de casos, ejecucion, guardado y evaluacion.
+- `app/cli.py`: CLI Typer para ejecutar corridas desde terminal.
+- `tests/`: pruebas unitarias de parsers, rutas, metricas, resultados, CLI y
+  orquestacion.
+- `*.ipynb`: notebooks exploratorios que todavia contienen analisis, ETL,
+  graficas y comparaciones no migradas por completo a la app.
+
+El flujo funcional actual es:
+
+1. Resolver archivos de entrada locales o descargados.
+2. Parsear OFEI, condiciones iniciales, demanda, disponibilidad y ofertas.
+3. Construir `set_data` y `param_data` para Pyomo.
+4. Crear y resolver el modelo.
+5. Hacer una segunda corrida LP de pricing cuando se requieren precios
+   marginales validos.
+6. Guardar despacho, precio marginal y metricas cuando hay datos reales de XM.
+
+---
+
+## 3. Variantes de despacho implementadas
+
+Las variantes viven en `DispatchOptions`, dentro de
+[app/model/model.py](app/model/model.py).
+
+| `dispatch_type` | significado |
+| --- | --- |
+| `preideal` | Predespacho ideal contra demanda pronosticada `PrId`. Es el caso base y mas rapido. |
+| `ideal` | Despacho ideal con restricciones termicas adicionales: rampas, minimo tiempo en linea, arranques y apagados. |
+| `bess_preideal` | Predespacho ideal con BESS. |
+| `bess_ideal` | Despacho ideal con BESS. |
+| `bess_preideal_resource` | Predespacho con BESS modelada como recurso/activo del sistema mediante objetivo de bienestar social. |
+| `bess_ideal_resource` | Despacho ideal con BESS modelada como recurso/activo del sistema. |
+
+### Modos BESS objetivo
+
+Conceptualmente se quiere soportar tres modos:
+
+| modo objetivo | descripcion | estado actual |
+| --- | --- | --- |
+| Arbitraje independiente | La bateria oferta precios de carga y descarga. | Parcialmente cubierto por `bess_preideal` y `bess_ideal`. |
+| Activo del operador/red | El operador optimiza la bateria como activo del sistema y se remunera por energia cargada/descargada. | Parcialmente cubierto por `*_resource`. |
+| Generador | La bateria actua como generador que oferta precio de descarga. | Pendiente de formalizar como modo separado. |
+
+Una meta importante es separar estos modos en una configuracion explicita de
+escenario BESS, en vez de depender solo del nombre del `dispatch_type`.
+
+---
+
+## 4. Conceptos importantes
+
+- **MPO / precio marginal:** se obtiene como el dual de la restriccion
+  `power_balance`. Es el precio marginal del sistema calculado por el modelo.
+- **MILP -> pricing LP:** el modelo tiene variables binarias. El dual de una
+  solucion MILP no es un precio marginal valido. Por eso
+  `UnitCommitmentModel.solve(..., compute_prices=True)` fija las variables
+  enteras despues de resolver el MILP y resuelve un LP de pricing. Los precios
+  deben leerse despues de esa segunda corrida.
+- **Metricas:** las metricas estan en [app/utils/metrics.py](app/utils/metrics.py).
+  Se usan RMSE, MAE, bias, WAPE y sMAPE. Se evita MAPE porque en sistemas con
+  precios cercanos a cero puede explotar y dar lecturas poco utiles.
+- **Unidades:** parte del codigo hace conversiones de unidades al cargar datos.
+  No agregue conversiones nuevas sin revisar [app/data/loaders.py](app/data/loaders.py)
+  y las pruebas asociadas.
+
+---
+
+## 5. Mapa del repositorio
+
+```text
 app/
-  cli.py            # Typer CLI: `python -m app run ...`   <-- start here
-  __main__.py       # entrypoint enabling `python -m app`
-  dates.py          # date-token parsing (single / range / month / all)
-  model/            # the pyomo UnitCommitmentModel + constraints (the math)
+  cli.py            # CLI Typer: python -m app run ...
+  __main__.py       # habilita python -m app
+  dates.py          # parsing de fechas: dia, rango, mes o todo
+  model/            # UnitCommitmentModel y restricciones Pyomo
   data/
-    download.py     # download XM files; ensure_data_for_date()
-    ofei.py         # parse the OFEI offer text file
-    loaders.py      # read the root CSVs + unit conversions
-    actuals.py      # load XM actual predispatch + price (evaluation targets)
-    paths.py        # resolve_input(): handles BOTH data layouts (see §4)
+    download.py     # descarga archivos XM por fecha
+    ofei.py         # parser del archivo OFEI
+    loaders.py      # carga CSVs base y aplica conversiones
+    actuals.py      # carga precios/despacho reales para evaluacion
+    paths.py        # resuelve ubicaciones historicas y descargadas
   pipeline/
-    case_builder.py # (date, config) -> (set_data, param_data, meta)  [core]
-    results.py      # extract MPO + dispatch from a solved model; save CSVs
-    runner.py       # orchestrate: build -> solve -> save -> evaluate
+    case_builder.py # fecha + configuracion -> set_data, param_data, meta
+    results.py      # extrae MPO/despacho y guarda resultados
+    runner.py       # orquesta build -> solve -> save -> evaluate
   utils/
-    metrics.py      # evaluation metrics
-    misc.py         # back-compat shim -> app.data.download
+    metrics.py      # metricas de evaluacion
+    misc.py         # compatibilidad hacia app.data.download
 
-run_dispatch.py     # LEGACY single-date runner (now delegates to case_builder)
-get_date_results.py # LEGACY batch runner (now delegates to runner.run_many)
-*.ipynb             # exploratory notebooks (data_fetcher, comparisons, charts)
+run_dispatch.py     # runner legado de una fecha; conserva compatibilidad
+get_date_results.py # runner legado batch
+*.ipynb             # notebooks exploratorios y ETL no migrado
 
-docs/superpowers/specs/  # design spec for the CLI app
-docs/superpowers/plans/  # step-by-step implementation plan
-tests/                   # pytest suite (see §7)
-data/                    # ALL inputs/outputs; git-ignored (empty in a fresh clone)
+docs/
+  roadmap-aplicacion-despacho.md # vision y fases hacia app dockerizada
+  superpowers/specs/             # diseno de la CLI actual
+  superpowers/plans/             # plan de implementacion de la CLI actual
+
+tests/               # suite pytest
+data/                # insumos y resultados; git-ignored
+solver/              # artefactos locales del solver; git-ignored
 ```
 
 ---
 
-## 3. Setup
+## 6. Instalacion local
 
-Requires Python 3.10+ and the **CBC** solver binary on `PATH`
-(`which cbc`; on Debian/Ubuntu: `apt-get install coinor-cbc`).
+Requiere Python 3.10+ y un solver compatible con Pyomo. El flujo documentado usa
+**CBC** en el `PATH`.
+
+En Debian/Ubuntu:
+
+```bash
+sudo apt-get install coinor-cbc
+```
+
+Entorno Python:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirement.txt        # note: file is named requirement.txt (singular)
+pip install -r requirement.txt
 ```
 
-`requirement.txt` is a full freeze and is heavy (it includes Orange3, Jupyter,
-etc.). The actual runtime essentials are: `pandas`, `numpy`, `Pyomo`, `thefuzz`,
-`typer`, `requests`, `plotly` (plots only), `scikit-learn` (notebooks),
-`openpyxl`/`xlrd` (DERs Excel only). `pytest` for tests.
+`requirement.txt` es un freeze pesado porque incluye dependencias de notebooks y
+analisis exploratorio. Para runtime, las dependencias centrales son:
 
-Verify the toolchain:
+- `pandas`, `numpy`
+- `pyomo`
+- `thefuzz`
+- `typer`
+- `requests`
+- `plotly` para graficas
+- `openpyxl` / `xlrd` para archivos Excel
+- `pytest` para pruebas
+
+Verificacion basica:
 
 ```bash
 python -c "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
-# -> cbc True
 pytest -q
 ```
 
 ---
 
-## 4. Data layout (read carefully)
+## 7. Datos requeridos
 
-`data/` is git-ignored, so a fresh clone has **no data**. You must obtain it.
-Two layouts are supported; `app/data/paths.resolve_input()` tries the organized
-("historical/offline") location first, then falls back to the live per-date
-download folder.
+`data/` esta ignorado por Git. Un clon limpio no trae datos reales.
 
-**Inputs that vary by date** (resolved by `paths.py`):
+El codigo soporta dos layouts:
 
-| file kind | historical/offline location | live download location |
-|-----------|-----------------------------|------------------------|
-| OFEI (offers)            | `data/oferta_inicial/OFEI{MMDD}.txt`        | `data/{YYYY-MM-DD}/OFEI{MMDD}.txt` |
-| dCondIniP / dCondIniU    | `data/condicion_inicial/{YYYY-MM-DD}/dCondIni*{MMDD}.txt` | `data/{YYYY-MM-DD}/dCondIni*{MMDD}.txt` |
-| PrId (demand forecast)   | `data/predespacho_ideal/PrId{MMDD}_NAL.txt` | `data/{YYYY-MM-DD}/PrId{MMDD}_NAL.txt` |
-| iMAR (XM price)          | `data/predespacho_ideal/iMAR{MMDD}_NAL.txt` | `data/{YYYY-MM-DD}/iMAR{MMDD}_NAL.txt` |
+1. Layout historico/offline organizado.
+2. Layout descargado por fecha en `data/{YYYY-MM-DD}/`.
 
-**Root CSVs** (loaded by `app/data/loaders.py`, same for every date):
+`app/data/paths.py` intenta primero el layout historico y luego el layout
+descargado.
 
-```
-data/dispo_declarada.csv      data/ofertas.csv        data/demaCome.csv
-data/agc_asignado.csv         data/parametros_plantas.csv
+### Archivos que cambian por fecha
+
+| tipo | ubicacion historica/offline | ubicacion descargada |
+| --- | --- | --- |
+| OFEI | `data/oferta_inicial/OFEI{MMDD}.txt` | `data/{YYYY-MM-DD}/OFEI{MMDD}.txt` |
+| dCondIniP / dCondIniU | `data/condicion_inicial/{YYYY-MM-DD}/dCondIni*{MMDD}.txt` | `data/{YYYY-MM-DD}/dCondIni*{MMDD}.txt` |
+| PrId | `data/predespacho_ideal/PrId{MMDD}_NAL.txt` | `data/{YYYY-MM-DD}/PrId{MMDD}_NAL.txt` |
+| iMAR | `data/predespacho_ideal/iMAR{MMDD}_NAL.txt` | `data/{YYYY-MM-DD}/iMAR{MMDD}_NAL.txt` |
+
+### CSVs base
+
+Estos archivos son consumidos por [app/data/loaders.py](app/data/loaders.py):
+
+```text
+data/dispo_declarada.csv
+data/ofertas.csv
+data/demaCome.csv
+data/agc_asignado.csv
+data/parametros_plantas.csv
 data/precio_bolsa/precio_bolsa_2024.csv
-data/DispoCome_resource.csv   # only for `ideal` types
+data/DispoCome_resource.csv   # requerido para tipos ideal
 ```
 
-**JSON / Excel helpers:**
+### Archivos auxiliares
 
-```
-data/ramps.json                  data/preideal_dispatch_map.json
-data/error_map.json              data/Supuestos Modelo de despacho.xlsx  # DERs only
-```
-
-**Evaluation targets** (XM actuals, loaded by `app/data/actuals.py`):
-
-```
-data/preideal_price/{YYYY-MM-DD}.txt      # XM marginal price (24 values)
-data/preideal_dispatch/{YYYY-MM-DD}.txt   # XM predispatch generation
+```text
+data/ramps.json
+data/preideal_dispatch_map.json
+data/error_map.json
+data/Supuestos Modelo de despacho.xlsx
 ```
 
-**Outputs** are written to `data/results/`.
+### Datos reales para evaluacion
 
-**Date discovery:** the CLI (no date argument) and the legacy batch script find
-dates by globbing `data/condicion_inicial/{YYYY-MM-DD}/`.
+```text
+data/preideal_price/{YYYY-MM-DD}.txt
+data/preideal_dispatch/{YYYY-MM-DD}.txt
+```
 
-### Downloading data
+### Descarga desde XM
 
-`app/data/download.py` fetches the per-date files from the XM portal into
-`data/{YYYY-MM-DD}/`. Running the CLI auto-downloads missing per-date files
-(`ensure_data_for_date`). The bulk root CSVs come from `data_fetcher.ipynb`
-(not yet ported to the app). **Network access to the XM portal is required** for
-downloads; in an offline environment, place files manually per the table above.
+`app/data/download.py` descarga archivos por fecha hacia `data/{YYYY-MM-DD}/`.
+La CLI invoca `ensure_data_for_date()` cuando necesita datos por fecha.
+
+Los CSVs base todavia dependen principalmente de `data_fetcher.ipynb`; esa ETL
+no esta migrada por completo a la aplicacion.
 
 ---
 
-## 5. How to run
+## 8. Como ejecutar
 
-### CLI (preferred)
+La CLI es el camino recomendado:
 
 ```bash
-python -m app run 2024-04-18                 # one date, preideal
-python -m app run 2024-04-18 -t ideal        # one type
-python -m app run 2024-04-18:2024-04-30 -t all   # range, every type
-python -m app run 2024-04                     # whole month
-python -m app run                             # all discovered dates
+python -m app run 2024-04-18
+python -m app run 2024-04-18 -t ideal
+python -m app run 2024-04-18:2024-04-30 -t all
+python -m app run 2024-04
+python -m app run
 ```
 
-Useful options (`python -m app run --help`):
+Opciones utiles:
 
-| option | default | meaning |
-|--------|---------|---------|
-| `-t, --type`     | `preideal` | repeatable; `all` = every type |
-| `--solver`       | `cbc`      | pyomo solver name |
-| `--eval/--no-eval` | eval     | compute metrics vs XM actuals when present |
-| `--prices/--no-prices` | prices | run the fix-integers→LP pricing re-solve (off = MPO invalid, debugging only) |
-| `--skip-dates`   | (none)     | comma-separated `YYYY-MM-DD` to skip |
-| `--out`          | `data/results` | output dir |
-| `--data-dir`     | `data`     | input dir |
+| opcion | default | significado |
+| --- | --- | --- |
+| `-t, --type` | `preideal` | Tipo de despacho. Es repetible. `all` ejecuta todos los tipos. |
+| `--solver` | `cbc` | Solver Pyomo. |
+| `--eval/--no-eval` | eval | Calcula metricas contra XM cuando hay datos reales. |
+| `--prices/--no-prices` | prices | Ejecuta o salta el LP de pricing. Sin pricing, el MPO no es confiable. |
+| `--skip-dates` | vacio | Fechas `YYYY-MM-DD` separadas por coma para omitir. |
+| `--out` | `data/results` | Directorio de salida. |
+| `--data-dir` | `data` | Directorio base de insumos. |
 
-The CLI exits non-zero if any case failed and lists the failures. Per-case
-failures (missing data, solver error) are isolated and never abort the batch.
-
-### Legacy / programmatic
+Uso programatico:
 
 ```python
 from datetime import date
@@ -194,80 +277,145 @@ res = run_case(date(2024, 4, 18), DispatchConfig("preideal"), solver="cbc")
 print(res.ok, res.metrics)
 ```
 
-`run_dispatch.run_dispatch(...)` still exists (used by notebooks) and returns
-`(mpo_df, model, pmax_new_resources, expansion_sources)`.
+`run_dispatch.run_dispatch(...)` se conserva para notebooks y compatibilidad.
 
 ---
 
-## 6. Outputs
+## 9. Resultados
 
-Per `(date, type)` in `data/results/`:
+Por cada `(fecha, tipo)` se escriben archivos en `data/results/`:
 
+```text
+dispatch_by_gen-{date}-{type}.csv
+marginal_price-{date}-{type}.csv
+metrics-{date}-{type}.csv
 ```
-dispatch_by_gen-{date}-{type}.csv     # generation per unit per hour
-marginal_price-{date}-{type}.csv      # model MPO per hour
-metrics-{date}-{type}.csv             # price metrics vs XM (when evaluated)
+
+Cuando hay evaluacion, tambien se genera:
+
+```text
+data/results/metrics-summary.csv
 ```
 
-Run-level: `data/results/metrics-summary.csv` — one row per `(date, type)` with
-rmse / mae / bias / wape / smape / r2.
+El resumen incluye metricas como RMSE, MAE, bias, WAPE, sMAPE y R2.
+
+Para escenarios BESS, una brecha actual es guardar de forma mas completa carga,
+descarga, SOC, costos/ingresos y remuneracion. Hoy el pipeline guarda el
+despacho y el precio marginal, pero la salida BESS debe fortalecerse.
 
 ---
 
-## 7. Testing
+## 10. Pruebas
 
 ```bash
-pytest -q          # 23 tests
+pytest -q
 ```
 
-Covers: date parsing, OFEI parser, loaders, actuals, path resolver, results
-extraction + the pricing fix (a tiny solvable cbc model), metrics, runner
-failure-isolation, and the CLI.
+Las pruebas cubren:
+
+- parsing de fechas;
+- parser OFEI;
+- loaders;
+- actuals;
+- resolucion de paths;
+- extraccion de resultados;
+- pricing fix en un modelo pequeno;
+- metricas;
+- aislamiento de fallas en `runner`;
+- CLI.
+
+Estas pruebas no validan por si solas que `case_builder` reproduzca resultados
+historicos con datos reales. Para eso hacen falta fixtures doradas o corridas
+comparativas contra los scripts previos.
 
 ---
 
-## 8. Current status & known gaps (DO NOT skip)
+## 11. Brechas conocidas
 
-- **`app/pipeline/case_builder.py` is NOT validated end-to-end.** It was
-  extracted (faithfully, by moving code) from the legacy scripts, but it has
-  never run against real data in this repo's CI environment because `data/` is
-  empty and XM was unreachable. The unit tests do **not** exercise it. Treat its
-  correctness as "code-review only" until proven against data. This is the single
-  most likely place for a transcription bug.
-- **To validate it:** capture `set_data` / `param_data` from git rev `450eae70`'s
-  `run_dispatch` for a known date, pickle as a golden fixture, and assert
-  `build_case` reproduces it (see Task 6, Step 3 in the plan). Then run
-  `python -m app run <date> -t preideal` and diff the result CSVs against the old
-  script's output.
-- The two legacy scripts originally read some inputs from **different** locations
-  and used **different demand inputs**. The unified `build_case` now uses the
-  **PrId forecast** for demand and `resolve_input` for paths. If your historical
-  data only has `data/preideal_dispatch/` (realized) and no `PrId`, demand
-  resolution will fail with a clear "tried: [...]" error — supply PrId or revisit
-  this decision.
-- The bulk-CSV ETL (`data_fetcher.ipynb`) is not yet part of the app.
-- Plotting was intentionally removed from the run path (kept in notebooks /
-  legacy `run_dispatch`).
+- `app/pipeline/case_builder.py` fue extraido desde scripts legados, pero
+  necesita validacion end-to-end con datos reales.
+- La ETL de CSVs base sigue principalmente en notebooks.
+- Los modos BESS no estan modelados aun como una interfaz de escenario clara.
+- Falta una salida BESS completa: carga, descarga, SOC, pagos/remuneracion y
+  comparaciones por escenario.
+- No existe todavia Dockerfile ni `docker-compose.yml`.
+- No existe backend HTTP ni frontend.
+- No existe persistencia de ejecuciones, metadatos, artefactos y logs.
+- Los supuestos para correr semanas futuras no estan formalizados en modulos de
+  forecasting.
 
 ---
 
-## 9. For AI agents
+## 12. Hacia donde se quiere llegar
 
-- **Environment:** there is no project-specific virtualenv checked in. Build one
-  per §3, or use any env with `pandas + pyomo + thefuzz + typer + cbc`.
-- **Before claiming anything "works":** run `pytest -q` and show the output.
-  Green tests prove the edges + the pricing fix; they do **not** prove
-  `case_builder` against real data (see §8). Do not round "23 passed" up to "the
-  app works."
-- **Design docs are authoritative:** read `docs/superpowers/specs/` and
-  `docs/superpowers/plans/` before architectural changes.
-- **Faithful-extraction rule:** `case_builder.py` is a near-verbatim move of the
-  legacy logic (fuzzy name-matching, combined-cycle synthesis, initial
-  conditions). Some locals are computed-but-unused — that is preserved on
-  purpose. Do not "clean up" the math without a golden-fixture regression test.
-- **Pricing:** never read MPO from a raw MILP solve. Use `solve(compute_prices=True)`
-  and read `power_balance` duals. Align MPO to XM by **timestamp**, not dict
-  order (`runner.py` does this).
-- **Commits:** branch off `main`; current work lives on `develop`. End commit
-  messages with the `Co-Authored-By` trailer already used in the history.
-```
+La aplicacion objetivo deberia tener:
+
+| componente | responsabilidad |
+| --- | --- |
+| Libreria de dominio | Mantener modelo, loaders, construccion de casos, evaluacion y resultados. |
+| CLI | Ejecutar flujos reproducibles para desarrollo, batch y automatizacion. |
+| Backend API | Crear escenarios, lanzar corridas, consultar estado y descargar resultados. |
+| Worker | Ejecutar corridas largas, descargas, ETL, solver y evaluacion. |
+| Frontend | Configurar fechas, escenarios BESS, modo de participacion y ver resultados. |
+| Base de datos | Persistir escenarios, corridas, estados, metricas y metadatos. |
+| Storage | Guardar insumos XM, artefactos intermedios y resultados pesados. |
+| Docker | Hacer reproducible el entorno con solver, dependencias y volumenes de datos. |
+
+### Interfaces de dominio que conviene estabilizar
+
+Antes de construir API/frontend, conviene cerrar estas piezas:
+
+- `DispatchCase`: fecha, tipo de despacho, solver, fuente de datos.
+- `BessScenario`: potencia, energia, eficiencia, SOC, modo de mercado y ofertas.
+- `InputPack`: insumos historicos, descargados o pronosticados, con version y
+  checksum.
+- `RunResult`: precios, despacho, resultados BESS, metricas, logs y errores.
+
+### Fases sugeridas
+
+1. **Estabilizar el core:** validar `case_builder`, completar salidas BESS y
+   separar configuracion de escenarios.
+2. **Completar CLI:** agregar comandos de `fetch`, `evaluate`, `compare` y
+   ejecucion por escenarios declarativos.
+3. **Dockerizar:** crear imagen con solver, dependencias runtime y smoke tests.
+4. **Persistir ejecuciones:** agregar DB y modelo de artefactos/resultados.
+5. **Agregar backend y worker:** separar API de ejecucion pesada.
+6. **Agregar frontend:** construir interfaz operativa para configuracion,
+   seguimiento y comparacion.
+7. **Forecast:** producir insumos futuros con supuestos explicitos de precios de
+   oferta, disponibilidad y demanda.
+
+---
+
+## 13. Backtesting y escenarios futuros
+
+Para medir precision historica:
+
+- comparar precio marginal modelo vs precio publicado por XM;
+- comparar despacho por recurso/tecnologia cuando haya datos;
+- reportar errores por hora, dia, mes y bloque horario;
+- comparar caso base vs escenarios BESS.
+
+Para correr semanas futuras:
+
+- precios de oferta: iniciar con mediana historica por recurso y tipo de dia,
+  con fallback por tecnologia;
+- disponibilidad: usar un baseline seasonal-naive por recurso/hora/tipo de dia;
+- demanda: usar forecast publicado si existe; si no, baseline horario ajustado
+  por tendencia reciente.
+
+Estos supuestos deben quedar versionados y separados de los datos historicos
+reales para no mezclar corridas observadas con corridas hipoteticas.
+
+---
+
+## 14. Notas para agentes de IA
+
+- No asuma que `data/` existe; esta git-ignored.
+- No afirme que el modelo completo funciona solo porque pasan las pruebas.
+  `case_builder` necesita validacion con datos reales.
+- No lea precios marginales de una solucion MILP sin el pricing LP.
+- No limpie o refactorice la logica de `case_builder` sin una prueba dorada.
+- Antes de cambios grandes, revise
+  [docs/roadmap-aplicacion-despacho.md](docs/roadmap-aplicacion-despacho.md),
+  `docs/superpowers/specs/` y `docs/superpowers/plans/`.
