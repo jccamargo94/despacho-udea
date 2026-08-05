@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (informational, non-blocking)
+        entry: bash -c 'uv run ty check app/ || true'
+        language: system
+        pass_filenames: false
+        stages: [manual]

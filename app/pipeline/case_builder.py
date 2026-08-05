@@ -9,16 +9,16 @@ It does NOT build or solve the model; callers do that with the returned dicts.
 `meta` carries the non-model artifacts the legacy plotting/return path needs.
 """
 
-from copy import deepcopy
 import json
 import re
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
-from thefuzz import process, fuzz
+from thefuzz import fuzz, process
 
-from app.data.download import ensure_data_for_date
 from app.data import loaders
+from app.data.download import ensure_data_for_date
 from app.data.ofei import parse_ofei
 from app.data.paths import resolve_input
 from app.schemas.bess import BessScenario
@@ -33,9 +33,14 @@ def bess_scenario_to_params(scenario: BessScenario) -> tuple[list[str], dict]:
     max_charge/max_discharge = mwh_nom / hours_to_deplete)."""
     names = [u.name for u in scenario.units]
     params: dict[str, dict] = {
-        "bess_soc_0": {}, "bess_charge_bid": {}, "bess_discharge_bid": {},
-        "bess_min_soc": {}, "bess_max_soc": {}, "efficiency": {},
-        "bess_max_charge": {}, "bess_max_discharge": {},
+        "bess_soc_0": {},
+        "bess_charge_bid": {},
+        "bess_discharge_bid": {},
+        "bess_min_soc": {},
+        "bess_max_soc": {},
+        "efficiency": {},
+        "bess_max_charge": {},
+        "bess_max_discharge": {},
     }
     for u in scenario.units:
         params["bess_soc_0"][u.name] = u.initial_soc * u.mwh_nom
@@ -90,9 +95,7 @@ def build_case(
     prices = ofei.prices
 
     # --- Filter data by date ---
-    dispo = dispo[
-        (dispo.datetime.dt.date == DISPATCH_DATE) & (dispo["resource_name"].notnull())
-    ]
+    dispo = dispo[(dispo.datetime.dt.date == DISPATCH_DATE) & (dispo["resource_name"].notnull())]
     dispo = dispo.drop_duplicates(subset=["resource_name", "datetime"])
     oferta_full = ofertas.copy()
     ofertas = ofertas[ofertas.Date.dt.date == DISPATCH_DATE]
@@ -102,8 +105,7 @@ def build_case(
 
     if case.level == DispatchLevel.ideal:
         dispo_come = dispo_come[
-            (dispo_come.datetime.dt.date == DISPATCH_DATE)
-            & (dispo_come["resource_name"].notnull())
+            (dispo_come.datetime.dt.date == DISPATCH_DATE) & (dispo_come["resource_name"].notnull())
         ]
         dispo_come = dispo_come.drop_duplicates(subset=["resource_name", "datetime"])
         for gen in dispo["resource_name"].unique():
@@ -124,7 +126,8 @@ def build_case(
                 dispo.loc[dispo["resource_name"] == gen, "dispo"] = serie["dispo"].values
             else:
                 print(
-                    f"no existe el generador {gen} en disponibilidad comercial para el {DISPATCH_DATE}. Se asignará en 0"
+                    f"no existe el generador {gen} en disponibilidad comercial para el "
+                    f"{DISPATCH_DATE}. Se asignará en 0"
                 )
                 dispo.loc[dispo["resource_name"] == gen, "dispo"] = 0
 
@@ -216,12 +219,8 @@ def build_case(
     # --- Adding units for each CC resource ---
     CC_MAP_inv = {v: k for k, v in CC_MAP.items()}
 
-    dcondIniPlant = condicion_inicial_planta[
-        condicion_inicial_planta.Recurso.isin(CC_MAP.values())
-    ]
-    dcondIniPlant.loc[:, "Recurso"] = dcondIniPlant["Recurso"].apply(
-        lambda x: CC_MAP_inv.get(x, x)
-    )
+    dcondIniPlant = condicion_inicial_planta[condicion_inicial_planta.Recurso.isin(CC_MAP.values())]
+    dcondIniPlant.loc[:, "Recurso"] = dcondIniPlant["Recurso"].apply(lambda x: CC_MAP_inv.get(x, x))
     dcondIniPlant.loc[:, "dispatched_conf"] = dcondIniPlant.loc[:, "Conf_Pini-1"].apply(
         lambda x: int(re.findall(r"\d+", x)[0])
     )
@@ -256,21 +255,13 @@ def build_case(
     initial_condition_df = pd.concat(
         [initial_condition_df, condicion_inicial_planta_termicas], ignore_index=True
     )
-    initial_condition_df = initial_condition_df.astype(
-        {"T_CONF_Pini-1": int, "Gpini-1": float}
-    )
+    initial_condition_df = initial_condition_df.astype({"T_CONF_Pini-1": int, "Gpini-1": float})
 
     # --- Initial set to model ---
-    gen_on = initial_condition_df[initial_condition_df["Gpini-1"] != 0][
-        "Recurso"
-    ].unique()
-    needed_generators = [
-        gen for gen in list(gen_on) if gen not in ofertas.resource_name.unique()
-    ]
+    gen_on = initial_condition_df[initial_condition_df["Gpini-1"] != 0]["Recurso"].unique()
+    needed_generators = [gen for gen in list(gen_on) if gen not in ofertas.resource_name.unique()]
     for gen in needed_generators:
-        gen_oferta = (
-            oferta_full.query("resource_name == @gen").head(1).reset_index(drop=True)
-        )
+        gen_oferta = oferta_full.query("resource_name == @gen").head(1).reset_index(drop=True)
         gen_oferta.loc[0, "Date"] = pd.Timestamp(DISPATCH_DATE)
         ofertas = pd.concat([ofertas, gen_oferta], axis=0)
 
@@ -278,8 +269,7 @@ def build_case(
     generators = dispo.resource_name.unique()
     timestamps = demanda["datetime"].to_dict().values()
     fuel_generators = dispo[
-        (dispo["resource_name"].isin(major_generators))
-        & (dispo["gen_type"] == "TERMICA")
+        (dispo["resource_name"].isin(major_generators)) & (dispo["gen_type"] == "TERMICA")
     ].resource_name.unique()
 
     gen_off = list(set(fuel_generators) - set(gen_on))
@@ -298,9 +288,7 @@ def build_case(
             )
         )
     }
-    minimo_operativo["resource"] = minimo_operativo["resource"].apply(
-        lambda x: MO_map.get(x, x)
-    )
+    minimo_operativo["resource"] = minimo_operativo["resource"].apply(lambda x: MO_map.get(x, x))
 
     generators_pap_map = {
         gen: process.extractOne(
@@ -329,9 +317,7 @@ def build_case(
         .sort_index()["dispo"]
         * 1e-3
     )
-    Pmin = minimo_operativo.set_index(["resource", "datetime"]).sort_index()[
-        "minimo_operativo"
-    ]
+    Pmin = minimo_operativo.set_index(["resource", "datetime"]).sort_index()["minimo_operativo"]
     beta = (
         ofertas.query("resource_name in @generators")
         .set_index(["resource_name"])
@@ -345,16 +331,12 @@ def build_case(
     demand_pronos = demand_pronos.iloc[:, 1:].sum().values
     demand_pronos = dict(zip(demanda["datetime"], demand_pronos))
 
-    Ton = initial_condition_df.set_index(["Recurso"]).query("Recurso in @gen_on")[
-        "T_CONF_Pini-1"
-    ]
+    Ton = initial_condition_df.set_index(["Recurso"]).query("Recurso in @gen_on")["T_CONF_Pini-1"]
     Ton = Ton[Ton.index.isin(fuel_generators)]
 
     z_on_t0_minus_1 = {
         gen: 1
-        for gen in initial_condition_df[initial_condition_df["Gpini-1"] > 0][
-            "Recurso"
-        ].unique()
+        for gen in initial_condition_df[initial_condition_df["Gpini-1"] > 0]["Recurso"].unique()
     }
     z_on_t0_minus_1 = {k: v for k, v in z_on_t0_minus_1.items() if k in fuel_generators}
 
@@ -391,9 +373,7 @@ def build_case(
         & (fixed_fuel_fire_2["generador_model"] != "")
         & ~(fixed_fuel_fire_2["generador_model"].isin(major_generators))
     ]
-    fixed_fuel_fire_2 = fixed_fuel_fire_2.set_index(["generador_model", "datetime"])[
-        "gen"
-    ]
+    fixed_fuel_fire_2 = fixed_fuel_fire_2.set_index(["generador_model", "datetime"])["gen"]
 
     Pmax_model = Pmax.apply(lambda x: np.round(x, 0)).to_dict()
 
@@ -433,16 +413,13 @@ def build_case(
         expansion_sources = [col for col in new_resources_df.columns if DERS in col]
         pmax_new_resources = new_resources_df[expansion_sources]
         pmax_new_resources.index = pd.Index(
-            pd.to_datetime(DISPATCH_DATE)
-            + pd.to_timedelta(new_resources_df.hours, unit="h"),
+            pd.to_datetime(DISPATCH_DATE) + pd.to_timedelta(new_resources_df.hours, unit="h"),
             name="datetime",
         )
         pmax_new_resources = pmax_new_resources.stack().reset_index()
         pmax_new_resources.columns = ["datetime", "resource_name", "dispo"]
         Pmax_model.update(
-            pmax_new_resources.set_index(["resource_name", "datetime"]).to_dict()[
-                "dispo"
-            ]
+            pmax_new_resources.set_index(["resource_name", "datetime"]).to_dict()["dispo"]
         )
         generators = generators.tolist() + expansion_sources
 

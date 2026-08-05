@@ -23,9 +23,9 @@ def extract_mpo(model) -> dict:
 
 def extract_dispatch(model) -> pd.DataFrame:
     data = {(g, t): pyo.value(v) for (g, t), v in model._model.pout.items()}
-    return pd.DataFrame(
-        data=data.values(), index=data.keys(), columns=["dispatch"]
-    ).reset_index(drop=False, names=["generador", "datetime"])
+    return pd.DataFrame(data=data.values(), index=data.keys(), columns=["dispatch"]).reset_index(
+        drop=False, names=["generador", "datetime"]
+    )
 
 
 def extract_bess(model, mpo: dict) -> pd.DataFrame:
@@ -43,15 +43,17 @@ def extract_bess(model, mpo: dict) -> pd.DataFrame:
         b, t = key
         price = mpo[t]
         c, d = charge[key], discharge[key]
-        rows.append({
-            "unit": b,
-            "datetime": t,
-            "charge": c,
-            "discharge": d,
-            "soc": soc[key],
-            "revenue": d * price,
-            "cost": c * price,
-        })
+        rows.append(
+            {
+                "unit": b,
+                "datetime": t,
+                "charge": c,
+                "discharge": d,
+                "soc": soc[key],
+                "revenue": d * price,
+                "cost": c * price,
+            }
+        )
     return pd.DataFrame(rows)
 
 

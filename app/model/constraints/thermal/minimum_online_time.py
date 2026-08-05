@@ -1,7 +1,7 @@
-from typing import Iterator
 from logging import getLogger
-import pyomo.environ as pyo
+from typing import Iterator
 
+import pyomo.environ as pyo
 
 logger = getLogger("thermal_constraints")
 
@@ -32,15 +32,10 @@ def minimum_online_time_rule_for_offline_gen_rule(
     t_num = list(model.T).index(t) + 1
     if model.Lr[g] + 1 <= t_num <= len(model.T) - model.TMG[g]:
         summation_index = [
-            dt
-            for indx, dt in enumerate(model.T)
-            if t_num <= indx <= t_num + model.TMG[g] - 1
+            dt for indx, dt in enumerate(model.T) if t_num <= indx <= t_num + model.TMG[g] - 1
         ]
         if summation_index:
-            return (
-                sum(model.z[g, dt] for dt in summation_index)
-                >= model.TMG[g] * model.zup[g, t]
-            )
+            return sum(model.z[g, dt] for dt in summation_index) >= model.TMG[g] * model.zup[g, t]
         return pyo.Constraint.Skip
     return pyo.Constraint.Skip
 
@@ -54,9 +49,7 @@ def minimum_online_time_for_offline_gen_rule_last_section(
     t_num = list(model.T).index(t) + 1
     if len(model.T) - model.TMG[g] + 1 <= t_num <= len(model.T):
         # if model.Lr[g] + 1 <= t_num <= len(model.T) - model.TMG[g]:
-        summation_index = [
-            dt for indx, dt in enumerate(model.T) if t_num <= len(model.T)
-        ]
+        summation_index = [dt for indx, dt in enumerate(model.T) if t_num <= len(model.T)]
         if summation_index:
             return sum(model.z[g, dt] - model.zup[g, dt] for dt in summation_index) >= 0
         return pyo.Constraint.Skip

@@ -5,9 +5,9 @@ built inline: PAP start-up prices, minimum-operative (MO) profiles, combined
 cycle configurations/prices/availabilities, and per-resource bid prices.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import date
-import re
 
 import pandas as pd
 
@@ -17,12 +17,12 @@ DISPO_PATTERN = r"DISCONF(\d+)"
 
 @dataclass
 class OfeiData:
-    precio_arranque: pd.DataFrame   # columns: resource, type, price
+    precio_arranque: pd.DataFrame  # columns: resource, type, price
     minimo_operativo: pd.DataFrame  # columns: resource, type, hour, minimo_operativo, datetime
-    cc: dict                        # plant -> [plant_conf, ...]
-    cc_price: dict                  # plant_conf -> price
-    cc_dispo: dict                  # plant_conf -> 24 hourly availabilities
-    prices: dict                    # resource -> bid price (already * 1e-3)
+    cc: dict  # plant -> [plant_conf, ...]
+    cc_price: dict  # plant_conf -> price
+    cc_dispo: dict  # plant_conf -> 24 hourly availabilities
+    prices: dict  # resource -> bid price (already * 1e-3)
 
 
 def parse_ofei(path: str, dispatch_date: date) -> OfeiData:
@@ -52,9 +52,7 @@ def parse_ofei(path: str, dispatch_date: date) -> OfeiData:
             # Disponibilidad CC
             if (conf := re.findall(DISPO_PATTERN, line)) and "CC" in line:
                 fline = line.split(",")
-                cc_dispo[f"{fline[0].strip()}_{conf[0]}"] = [
-                    int(disp) for disp in fline[2:]
-                ]
+                cc_dispo[f"{fline[0].strip()}_{conf[0]}"] = [int(disp) for disp in fline[2:]]
 
             # Extract prices
             if "P" in line:
@@ -78,16 +76,12 @@ def parse_ofei(path: str, dispatch_date: date) -> OfeiData:
         MO,
         columns=["resource", "type"] + list(range(24)),
     )
-    minimo_operativo = (
-        minimo_operativo.set_index(["resource", "type"]).stack().reset_index()
-    )
+    minimo_operativo = minimo_operativo.set_index(["resource", "type"]).stack().reset_index()
     minimo_operativo.columns = ["resource", "type", "hour", "minimo_operativo"]
     minimo_operativo["datetime"] = pd.to_datetime(dispatch_date) + pd.to_timedelta(
         minimo_operativo["hour"], unit="h"
     )
-    minimo_operativo["minimo_operativo"] = minimo_operativo[
-        "minimo_operativo"
-    ].astype(float)
+    minimo_operativo["minimo_operativo"] = minimo_operativo["minimo_operativo"].astype(float)
 
     return OfeiData(
         precio_arranque=precio_arranque,

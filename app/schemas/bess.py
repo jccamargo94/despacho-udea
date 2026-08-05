@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, field_validator, ValidationInfo
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 
 class BessMode(str, Enum):

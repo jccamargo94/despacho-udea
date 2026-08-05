@@ -1,8 +1,8 @@
 """Typer CLI for the dispatch model.
 
-    python -m app run 2024-04-18 -t preideal
-    python -m app run 2024-04-18:2024-04-30 -t all
-    python -m app run 2024-04 --no-eval
+python -m app run 2024-04-18 -t preideal
+python -m app run 2024-04-18:2024-04-30 -t all
+python -m app run 2024-04 --no-eval
 """
 
 import calendar
@@ -11,12 +11,12 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import typer
 
-from app.schemas import DispatchCase, DispatchLevel
-from app.dates import parse_dates_arg
 from app.data.download import ensure_data_for_date
+from app.dates import parse_dates_arg
 from app.pipeline.evaluate import evaluate_saved_run
 from app.pipeline.runner import run_many
 from app.pipeline.scenarios import load_bess_scenario
+from app.schemas import DispatchCase, DispatchLevel
 from app.storage import get_storage
 
 app = typer.Typer(add_completion=False, help="Colombian dispatch model runner.")
@@ -64,7 +64,9 @@ def run(
         True, "--prices/--no-prices", help="fix-integers LP pricing re-solve"
     ),
     bess_scenario: str = typer.Option(
-        None, "--bess-scenario", help="named scenario (scenarios/bess/<name>.yaml) or path to a scenario YAML"
+        None,
+        "--bess-scenario",
+        help="named scenario (scenarios/bess/<name>.yaml) or path to a scenario YAML",
     ),
     skip_dates: str = typer.Option("", help="comma-separated YYYY-MM-DD to skip"),
     out: str = typer.Option("data/results", help="results directory"),
@@ -80,7 +82,10 @@ def run(
     levels = list(DispatchLevel) if "all" in type else [DispatchLevel(t) for t in type]
     cases = [
         DispatchCase(
-            dispatch_date=d, level=lvl, solver=solver, compute_prices=prices,
+            dispatch_date=d,
+            level=lvl,
+            solver=solver,
+            compute_prices=prices,
             bess_scenario=scenario,
         )
         for d in selected
@@ -91,9 +96,7 @@ def run(
         typer.echo("No dates selected.")
         raise typer.Exit(code=1)
 
-    typer.echo(
-        f"Running {len(selected)} date(s) x {len(levels)} level(s) with solver={solver}"
-    )
+    typer.echo(f"Running {len(selected)} date(s) x {len(levels)} level(s) with solver={solver}")
     results = run_many(cases, evaluate=eval, out=out, data_dir=data_dir)
     failed = [r for r in results if not r.ok]
     typer.echo(f"\nDone: {len(results) - len(failed)} ok, {len(failed)} failed.")
@@ -186,7 +189,5 @@ def compare(
     """Outer-join two runs' metrics-summary.csv on (date, type, scenario)."""
     df_a = _read_summary(out_a)
     df_b = _read_summary(out_b)
-    merged = df_a.merge(
-        df_b, on=["date", "type", "scenario"], how="outer", suffixes=("_a", "_b")
-    )
+    merged = df_a.merge(df_b, on=["date", "type", "scenario"], how="outer", suffixes=("_a", "_b"))
     typer.echo(merged.to_string(index=False))

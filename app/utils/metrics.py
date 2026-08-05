@@ -27,9 +27,7 @@ def _align(y_true, y_pred) -> tuple[np.ndarray, np.ndarray]:
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     if y_true.shape != y_pred.shape:
-        raise ValueError(
-            f"shape mismatch: y_true {y_true.shape} vs y_pred {y_pred.shape}"
-        )
+        raise ValueError(f"shape mismatch: y_true {y_true.shape} vs y_pred {y_pred.shape}")
     mask = ~(np.isnan(y_true) | np.isnan(y_pred))
     return y_true[mask], y_pred[mask]
 
@@ -115,9 +113,7 @@ def metrics_by_group(
     ``by`` is anything ``DataFrame.groupby`` accepts (column name, list, or a
     grouper such as ``df.index.hour``). One row of metrics per group.
     """
-    return df.groupby(by).apply(
-        lambda g: pd.Series(price_metrics(g[y_true_col], g[y_pred_col]))
-    )
+    return df.groupby(by).apply(lambda g: pd.Series(price_metrics(g[y_true_col], g[y_pred_col])))
 
 
 # --------------------------------------------------------------------------- #
@@ -192,9 +188,7 @@ def generation_mix_error(
     actual_mix = generation_by_tech(actual_dispatch, tech_map, gen_col, value_col)
     out = pd.DataFrame({"model": model_mix, "actual": actual_mix}).fillna(0.0)
     out["abs_error"] = (out["model"] - out["actual"]).abs()
-    out["pct_error"] = np.where(
-        out["actual"] != 0, out["abs_error"] / out["actual"], np.nan
-    )
+    out["pct_error"] = np.where(out["actual"] != 0, out["abs_error"] / out["actual"], np.nan)
     return out
 
 

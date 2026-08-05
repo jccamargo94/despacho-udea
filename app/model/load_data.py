@@ -1,9 +1,7 @@
-from typing import Iterable, Iterator
-
 from datetime import date
 
-from thefuzz import process, fuzz
 import pandas as pd
+from thefuzz import fuzz, process
 
 
 class DataLoader:
@@ -47,7 +45,7 @@ class DataLoader:
                         MO.append(mo_line)
         # Precio de arranque
         self.precio_arranque = pd.DataFrame(
-            [line.split(",") for line in output if not "usd" in line.lower()],
+            [line.split(",") for line in output if "usd" not in line.lower()],
             columns=["resource", "type", "price"],
         )
         self.precio_arranque["price"] = self.precio_arranque["price"].astype(float)
@@ -70,9 +68,9 @@ class DataLoader:
             "hour",
             "self.minimo_operativo",
         ]
-        self.minimo_operativo["datetime"] = pd.to_datetime(
-            self._dispatch_date
-        ) + pd.to_timedelta(self.minimo_operativo["hour"], unit="h")
+        self.minimo_operativo["datetime"] = pd.to_datetime(self._dispatch_date) + pd.to_timedelta(
+            self.minimo_operativo["hour"], unit="h"
+        )
         self.minimo_operativo["minimo_operativo"] = self.minimo_operativo[
             "minimo_operativo"
         ].astype(float)
@@ -82,9 +80,7 @@ class DataLoader:
             "r",
         ) as file:
             self.initial_conditions = file.readlines()
-            self.initial_conditions = [
-                line.strip().split(",") for line in self.initial_conditions
-            ]
+            self.initial_conditions = [line.strip().split(",") for line in self.initial_conditions]
             headers = self.initial_conditions.pop(0)
         self.initial_conditions = pd.DataFrame(self.initial_conditions, columns=headers)
         return None
@@ -101,9 +97,7 @@ class DataLoader:
         self.agc_asignado = self.agc_asignado[
             self.agc_asignado["datetime"].dt.date == self._dispatch_date
         ]
-        self.demanda = self.demanda[
-            self.demanda["datetime"].dt.date == self._dispatch_date
-        ]
+        self.demanda = self.demanda[self.demanda["datetime"].dt.date == self._dispatch_date]
         return None
 
     def create_model_sets(self) -> None:
@@ -165,9 +159,7 @@ class DataLoader:
             .sort_index()["dispo"]
             * 1e-3
         )
-        Pmin = minimo_operativo.set_index(["resource", "datetime"]).sort_index()[
-            "minimo_operativo"
-        ]
+        Pmin = minimo_operativo.set_index(["resource", "datetime"]).sort_index()["minimo_operativo"]
         beta = (
             ofertas.query("resource_name in @generators")
             .set_index(["resource_name"])

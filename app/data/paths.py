@@ -46,6 +46,4 @@ def resolve_input(kind: str, dispatch_date: date, data_dir: str = "data") -> str
         tried.append(str(p))
         if storage.exists(rel):
             return str(p)
-    raise FileNotFoundError(
-        f"Could not find {kind} file for {dispatch_date}. Tried: {tried}"
-    )
+    raise FileNotFoundError(f"Could not find {kind} file for {dispatch_date}. Tried: {tried}")

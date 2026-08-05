@@ -1,7 +1,7 @@
 from datetime import date
 
-from app.schemas.case import DispatchCase, DispatchLevel
 from app.schemas.bess import BessMode, BessScenario, BessUnit
+from app.schemas.case import DispatchCase, DispatchLevel
 
 
 def test_case_without_bess():
@@ -13,13 +13,23 @@ def test_case_without_bess():
 
 def test_case_with_bess_scenario():
     scenario = BessScenario(
-        mode=BessMode.grid_asset, penetration_level="10pct",
-        units=[BessUnit(
-            name="B1", mwh_nom=100.0, hours_to_deplete=4.0, initial_soc=0.5,
-            min_soc=0.1, max_soc=0.9, efficiency=0.92,
-        )],
+        mode=BessMode.grid_asset,
+        penetration_level="10pct",
+        units=[
+            BessUnit(
+                name="B1",
+                mwh_nom=100.0,
+                hours_to_deplete=4.0,
+                initial_soc=0.5,
+                min_soc=0.1,
+                max_soc=0.9,
+                efficiency=0.92,
+            )
+        ],
     )
-    c = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.ideal, bess_scenario=scenario)
+    c = DispatchCase(
+        dispatch_date=date(2024, 4, 18), level=DispatchLevel.ideal, bess_scenario=scenario
+    )
     assert c.bess_scenario.mode == BessMode.grid_asset
 
 
