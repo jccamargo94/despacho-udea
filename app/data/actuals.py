@@ -19,5 +19,5 @@ def load_actual_price(dispatch_date: date, data_dir: str = "data") -> np.ndarray
 def load_actual_dispatch(dispatch_date: date, data_dir: str = "data") -> pd.DataFrame:
     """XM predispatch generation matrix for the date (raw, latin1-encoded)."""
     storage = get_storage(data_dir)
-    with storage.open(f"preideal_dispatch/{dispatch_date}.txt") as f:
+    with storage.open(f"preideal_dispatch/{dispatch_date}.txt", "rb") as f:
         return pd.read_csv(f, header=None, encoding="latin1")
