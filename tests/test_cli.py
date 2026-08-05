@@ -102,3 +102,15 @@ def test_fetch_single_date(monkeypatch):
     result = runner.invoke(cli.app, ["fetch", "2024-04-18"])
     assert result.exit_code == 0
     assert calls == [date(2024, 4, 18)]
+
+
+def test_fetch_month_covers_every_day_including_leap_day(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d)
+    )
+    result = runner.invoke(cli.app, ["fetch", "2024-02"])
+    assert result.exit_code == 0
+    assert len(calls) == 29
+    assert calls[0] == date(2024, 2, 1)
+    assert calls[-1] == date(2024, 2, 29)
