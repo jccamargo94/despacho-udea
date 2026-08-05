@@ -5,12 +5,11 @@ is multiplied by the objective sense so that maximize (BESS welfare) and
 minimize (cost) cases both yield a positive price.
 """
 
-from pathlib import Path
-
 import pandas as pd
 import pyomo.environ as pyo
 
 from app.schemas import DispatchCase, RunResult
+from app.storage import get_storage
 
 
 def extract_mpo(model) -> dict:
@@ -30,19 +29,24 @@ def extract_dispatch(model) -> pd.DataFrame:
 
 
 def save_results(model, case: DispatchCase, out: str = "data/results") -> RunResult:
-    Path(out).mkdir(parents=True, exist_ok=True)
+    storage = get_storage(out)
     t = case.level.value
 
     dispatch = extract_dispatch(model)
-    dispatch_path = f"{out}/dispatch_by_gen-{case.dispatch_date}-{t}.csv"
-    dispatch.to_csv(dispatch_path, sep=",", index=False)
+    dispatch_name = f"dispatch_by_gen-{case.dispatch_date}-{t}.csv"
+    with storage.open(dispatch_name, "w") as f:
+        dispatch.to_csv(f, sep=",", index=False)
 
     mpo = extract_mpo(model)
-    price_path = f"{out}/marginal_price-{case.dispatch_date}-{t}.csv"
-    pd.DataFrame(
-        data=mpo.values(), index=mpo.keys(), columns=["ideal_marginal_price"]
-    ).reset_index(drop=False, names=["datetime"]).to_csv(
-        price_path, sep=",", index=False
-    )
+    price_name = f"marginal_price-{case.dispatch_date}-{t}.csv"
+    with storage.open(price_name, "w") as f:
+        pd.DataFrame(
+            data=mpo.values(), index=mpo.keys(), columns=["ideal_marginal_price"]
+        ).reset_index(drop=False, names=["datetime"]).to_csv(f, sep=",", index=False)
 
-    return RunResult(case=case, ok=True, dispatch_path=dispatch_path, price_path=price_path)
+    return RunResult(
+        case=case,
+        ok=True,
+        dispatch_path=f"{out}/{dispatch_name}",
+        price_path=f"{out}/{price_name}",
+    )
