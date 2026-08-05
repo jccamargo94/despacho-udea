@@ -114,3 +114,23 @@ def test_fetch_month_covers_every_day_including_leap_day(monkeypatch):
     assert len(calls) == 29
     assert calls[0] == date(2024, 2, 1)
     assert calls[-1] == date(2024, 2, 29)
+
+
+def test_evaluate_command(monkeypatch):
+    _stub_dates(monkeypatch)
+    monkeypatch.setattr(cli, "evaluate_saved_run", lambda d, lvl, **k: {"mae": 1.0})
+    result = runner.invoke(cli.app, ["evaluate", "2024-04-18", "-t", "preideal"])
+    assert result.exit_code == 0
+    assert "1 run(s) evaluated" in result.output
+
+
+def test_evaluate_command_reports_missing_runs(monkeypatch):
+    _stub_dates(monkeypatch)
+
+    def _raise(d, lvl, **k):
+        raise FileNotFoundError("no saved price CSV")
+
+    monkeypatch.setattr(cli, "evaluate_saved_run", _raise)
+    result = runner.invoke(cli.app, ["evaluate", "2024-04-18", "-t", "preideal"])
+    assert result.exit_code == 1
+    assert "No runs evaluated" in result.output

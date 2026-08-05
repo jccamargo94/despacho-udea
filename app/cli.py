@@ -13,6 +13,7 @@ import typer
 from app.schemas import DispatchCase, DispatchLevel
 from app.dates import parse_dates_arg
 from app.data.download import ensure_data_for_date
+from app.pipeline.evaluate import evaluate_saved_run
 from app.pipeline.runner import run_many
 from app.pipeline.scenarios import load_bess_scenario
 from app.storage import get_storage
@@ -127,3 +128,36 @@ def fetch(
         typer.echo(f"==> fetching {d}")
         ensure_data_for_date(d, data_dir=data_dir)
     typer.echo(f"Done: fetched {len(selected)} date(s).")
+
+
+@app.command()
+def evaluate(
+    dates: str = typer.Argument(
+        None, help="YYYY-MM-DD | range a:b | YYYY-MM | omit = all available"
+    ),
+    type: list[str] = typer.Option(
+        ["preideal"], "--type", "-t", help="dispatch level, repeatable, or 'all'"
+    ),
+    out: str = typer.Option("data/results", help="results directory"),
+    data_dir: str = typer.Option("data", help="input data directory"),
+):
+    """Re-score saved runs against XM actuals without re-solving the model."""
+    avail = _available_dates(data_dir)
+    selected = parse_dates_arg(dates, avail)
+    levels = list(DispatchLevel) if "all" in type else [DispatchLevel(t) for t in type]
+
+    evaluated = 0
+    for d in selected:
+        for lvl in levels:
+            try:
+                evaluate_saved_run(d, lvl, out=out, data_dir=data_dir)
+            except FileNotFoundError as e:
+                typer.echo(f"  ! {d} [{lvl.value}]: {e}")
+                continue
+            typer.echo(f"==> evaluated {d} [{lvl.value}]")
+            evaluated += 1
+
+    if evaluated == 0:
+        typer.echo("No runs evaluated.")
+        raise typer.Exit(code=1)
+    typer.echo(f"Done: {evaluated} run(s) evaluated.")
