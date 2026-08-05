@@ -8,6 +8,7 @@
 import calendar
 from datetime import date, datetime, timedelta
 
+import pandas as pd
 import typer
 
 from app.schemas import DispatchCase, DispatchLevel
@@ -161,3 +162,23 @@ def evaluate(
         typer.echo("No runs evaluated.")
         raise typer.Exit(code=1)
     typer.echo(f"Done: {evaluated} run(s) evaluated.")
+
+
+def _read_summary(out: str) -> pd.DataFrame:
+    storage = get_storage(out)
+    with storage.open("metrics-summary.csv") as f:
+        return pd.read_csv(f)
+
+
+@app.command()
+def compare(
+    out_a: str = typer.Argument(..., help="first run's results directory"),
+    out_b: str = typer.Argument(..., help="second run's results directory"),
+):
+    """Outer-join two runs' metrics-summary.csv on (date, type, scenario)."""
+    df_a = _read_summary(out_a)
+    df_b = _read_summary(out_b)
+    merged = df_a.merge(
+        df_b, on=["date", "type", "scenario"], how="outer", suffixes=("_a", "_b")
+    )
+    typer.echo(merged.to_string(index=False))

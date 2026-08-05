@@ -1,5 +1,6 @@
 from datetime import date
 
+import pandas as pd
 from typer.testing import CliRunner
 
 import app.cli as cli
@@ -134,3 +135,22 @@ def test_evaluate_command_reports_missing_runs(monkeypatch):
     result = runner.invoke(cli.app, ["evaluate", "2024-04-18", "-t", "preideal"])
     assert result.exit_code == 1
     assert "No runs evaluated" in result.output
+
+
+def test_compare_outer_joins_summaries_on_date_type_scenario(tmp_path):
+    a = tmp_path / "a"
+    a.mkdir()
+    b = tmp_path / "b"
+    b.mkdir()
+    pd.DataFrame([
+        {"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 1.0},
+    ]).to_csv(a / "metrics-summary.csv", index=False)
+    pd.DataFrame([
+        {"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 2.0},
+        {"date": "2024-04-19", "type": "preideal", "scenario": "baseline", "mae": 3.0},
+    ]).to_csv(b / "metrics-summary.csv", index=False)
+
+    result = runner.invoke(cli.app, ["compare", str(a), str(b)])
+    assert result.exit_code == 0
+    assert "2024-04-19" in result.output
+    assert "NaN" in result.output
