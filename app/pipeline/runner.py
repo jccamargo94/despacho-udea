@@ -68,9 +68,19 @@ def run_many(
         results.append(run_case(case, out=out, **kw))
 
     rows = [
-        {"date": r.case.dispatch_date, "type": r.case.level.value, **r.metrics}
+        {
+            "date": r.case.dispatch_date,
+            "type": r.case.level.value,
+            "scenario": (
+                r.case.bess_scenario.penetration_level
+                if r.case.bess_scenario is not None
+                else "baseline"
+            ),
+            **(r.metrics or {}),
+            **(r.bess_summary or {}),
+        }
         for r in results
-        if r.ok and r.metrics
+        if r.ok
     ]
     if rows:
         from pathlib import Path
