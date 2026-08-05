@@ -11,6 +11,7 @@ from app.schemas import DispatchCase, InputPack, InputSource, RunResult
 from app.pipeline.case_builder import build_case
 from app.pipeline.results import save_results, extract_mpo
 from app.data.actuals import load_actual_price
+from app.storage import get_storage
 from app.utils.metrics import price_metrics
 
 
@@ -83,8 +84,7 @@ def run_many(
         if r.ok
     ]
     if rows:
-        from pathlib import Path
-
-        Path(out).mkdir(parents=True, exist_ok=True)
-        pd.DataFrame(rows).to_csv(f"{out}/metrics-summary.csv", index=False)
+        storage = get_storage(out)
+        with storage.open("metrics-summary.csv", "w") as f:
+            pd.DataFrame(rows).to_csv(f, index=False)
     return results

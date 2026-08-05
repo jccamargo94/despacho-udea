@@ -1,4 +1,3 @@
-import json
 from datetime import date
 
 from app.data.download import ensure_data_for_date, save_file

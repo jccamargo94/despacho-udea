@@ -15,7 +15,7 @@
 - Every public function signature that exists today (`data_dir: str`, `out: str`, `dates: str`) stays unchanged in the storage-migration tasks (1–5) — these are behavior-preserving refactors; existing test assertions must not need edits.
 - Run tests with the project venv: `~/.local/share/virtualenvs/dam-worker-optimizer-W9GjOqr4/bin/python -m pytest tests/ -v` (has pyomo 6.7.3 + cbc + pydantic 1.10.8 + pytest/typer/thefuzz/pyyaml).
 - `app/pipeline/case_builder.py`'s two `open(resolve_input(...), "r")` blocks (dCondIniP/dCondIniU) are **not** migrated to `Storage` in this plan — `resolve_input` keeps returning a plain local path string (see Task 2), so wrapping those two `open()` calls in `storage.open()` would only add indirection with no behavior change until a GCS-aware `resolve_input` exists. Left as plain `open()`, noted here so it isn't mistaken for an oversight.
-- BESS `revenue`/`cost` use MPO-based settlement (`energy_MWh * price_COP_per_kWh * 1000`), not bid-based — see Task 8. `grid_asset` units frequently have no bids at all.
+- BESS `revenue`/`cost` use MPO-based settlement (`energy_MWh * price_COP_per_MWh`, no scaling factor — MPO is already in COP/MWh), not bid-based — see Task 8. `grid_asset` units frequently have no bids at all.
 - Known, undisturbed limitation: `same_soc_start_and_end` (`app/model/constraints/bess/soc.py`) only binds in `grid_asset` mode (via the legacy `_dispatch_type` substring tag). End-of-day SOC differs by mode, so `bess_net_revenue` (Task 8/9) is not directly comparable between `arbitrage` and `grid_asset` scenarios. Not fixed in this plan.
 
 ---

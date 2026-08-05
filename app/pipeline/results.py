@@ -31,8 +31,9 @@ def extract_dispatch(model) -> pd.DataFrame:
 def extract_bess(model, mpo: dict) -> pd.DataFrame:
     """Per-unit x hour BESS activity, settled at the system marginal price
     (MPO), not at the unit's own bid: the bid is an optimization input, and
-    grid_asset units often have no bids at all. revenue/cost are in COP
-    (energy in MWh x price in COP/kWh x 1000 kWh/MWh)."""
+    grid_asset units often have no bids at all. MPO is in COP/MWh, so
+    energy_MWh x price_COP_per_MWh yields COP directly; no scaling factor
+    is needed."""
     charge = {(b, t): pyo.value(v) for (b, t), v in model._model.bess_charge.items()}
     discharge = {(b, t): pyo.value(v) for (b, t), v in model._model.bess_discharge.items()}
     soc = {(b, t): pyo.value(v) for (b, t), v in model._model.soc_bess.items()}
@@ -40,7 +41,7 @@ def extract_bess(model, mpo: dict) -> pd.DataFrame:
     rows = []
     for key in sorted(charge.keys()):
         b, t = key
-        price = mpo.get(t, 0.0)
+        price = mpo[t]
         c, d = charge[key], discharge[key]
         rows.append({
             "unit": b,
@@ -48,8 +49,8 @@ def extract_bess(model, mpo: dict) -> pd.DataFrame:
             "charge": c,
             "discharge": d,
             "soc": soc[key],
-            "revenue": d * price * 1000.0,
-            "cost": c * price * 1000.0,
+            "revenue": d * price,
+            "cost": c * price,
         })
     return pd.DataFrame(rows)
 
@@ -58,7 +59,7 @@ def _bess_summary(bess_df: pd.DataFrame) -> dict[str, float]:
     return {
         "bess_charge_mwh": float(bess_df["charge"].sum()),
         "bess_discharge_mwh": float(bess_df["discharge"].sum()),
-        "bess_avg_soc": float(bess_df["soc"].mean()),
+        "bess_avg_soc_mwh": float(bess_df["soc"].mean()),
         "bess_net_revenue": float((bess_df["revenue"] - bess_df["cost"]).sum()),
     }
 

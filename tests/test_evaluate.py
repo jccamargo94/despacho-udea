@@ -56,10 +56,11 @@ def test_evaluate_sorts_price_csv_by_datetime(tmp_path):
 
 
 def test_evaluate_matches_inline_eval_exactly(monkeypatch, tmp_path):
-    """Acceptance test: evaluate must reproduce `run --eval`'s numbers,
-    including the sort-by-datetime the inline path applies via
-    extract_mpo_sorted (the saved CSV is written in dual-iteration order,
-    which is not guaranteed sorted)."""
+    """Parity test: the post-hoc `evaluate` path must reproduce the inline
+    `run --eval` path's numbers exactly. This does not by itself prove the
+    sort-by-datetime step matters — `test_evaluate_sorts_price_csv_by_datetime`,
+    elsewhere in this file, is what specifically pins that behavior (it fails
+    if the sort is removed; this test would not)."""
     ts = [pd.Timestamp("2024-04-18 00:00"), pd.Timestamp("2024-04-18 01:00")]
 
     def fake_build(case, inputs, **kw):

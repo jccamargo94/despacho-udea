@@ -123,12 +123,14 @@ en `arbitrage`/`generator`). Se escribe a
 
 `RunResult` gana `bess_path: str | None = None`.
 
-**Convencion de unidades**: energia en MWh, precio en COP/kWh (ver docstring
-de `app/utils/metrics.py` y `load_precio_bolsa`). `revenue`/`cost` en COP
-requieren factor `* 1000` (MWh -> kWh). Verificar el orden de magnitud de un
-dia real contra un precio conocido antes de confiar en la columna — sigue
-siendo el punto abierto de Fase 0 sobre unidades, y este es el primer codigo
-que multiplica energia por precio.
+**Convencion de unidades**: energia en MWh, precio (MPO) en COP/MWh (ver
+docstring de `load_precio_bolsa`; `case_builder.py` escala `beta` a COP/MWh y
+`Pmax`/`demand` a MW, así que el dual de `power_balance` sale en COP/MWh).
+`revenue`/`cost` en COP no requieren ningun factor de escala: `energy_MWh *
+price_COP_per_MWh` ya es COP. Verificar el orden de magnitud de un dia real
+contra un precio conocido antes de confiar en la columna — sigue siendo el
+punto abierto de Fase 0 sobre unidades, y este es el primer codigo que
+multiplica energia por precio.
 
 **Limitacion documentada, no corregida en Fase 1**: `same_soc_start_and_end`
 (`app/model/constraints/bess/soc.py`) solo aplica en modo `grid_asset`. El

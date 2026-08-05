@@ -125,10 +125,18 @@ def fetch(
 ):
     """Download raw XM inputs for the given date(s) without running the model."""
     selected = _enumerate_dates(dates)
+    ok = 0
+    failed = 0
     for d in selected:
         typer.echo(f"==> fetching {d}")
-        ensure_data_for_date(d, data_dir=data_dir)
-    typer.echo(f"Done: fetched {len(selected)} date(s).")
+        try:
+            ensure_data_for_date(d, data_dir=data_dir)
+        except Exception as e:
+            typer.echo(f"  ! {d}: {e}")
+            failed += 1
+            continue
+        ok += 1
+    typer.echo(f"Done: fetched {ok}/{len(selected)} date(s), {failed} failed.")
 
 
 @app.command()

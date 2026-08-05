@@ -117,6 +117,21 @@ def test_fetch_month_covers_every_day_including_leap_day(monkeypatch):
     assert calls[-1] == date(2024, 2, 29)
 
 
+def test_fetch_isolates_per_date_failures(monkeypatch):
+    calls = []
+
+    def _fake(d, data_dir):
+        calls.append(d)
+        if d == date(2024, 4, 19):
+            raise IndexError("XM hasn't published this file yet")
+
+    monkeypatch.setattr(cli, "ensure_data_for_date", _fake)
+    result = runner.invoke(cli.app, ["fetch", "2024-04-18:2024-04-20"])
+    assert result.exit_code == 0
+    assert calls == [date(2024, 4, 18), date(2024, 4, 19), date(2024, 4, 20)]
+    assert "fetched 2/3 date(s), 1 failed" in result.output
+
+
 def test_evaluate_command(monkeypatch):
     _stub_dates(monkeypatch)
     monkeypatch.setattr(cli, "evaluate_saved_run", lambda d, lvl, **k: {"mae": 1.0})
