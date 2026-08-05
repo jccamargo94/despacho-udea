@@ -17,7 +17,8 @@ def test_run_success(monkeypatch):
     _stub_dates(monkeypatch)
     case = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal)
     monkeypatch.setattr(
-        cli, "run_many",
+        cli,
+        "run_many",
         lambda *a, **k: [RunResult(case=case, ok=True)],
     )
     result = runner.invoke(cli.app, ["run", "2024-04-18", "-t", "preideal"])
@@ -29,7 +30,8 @@ def test_run_reports_failure(monkeypatch):
     _stub_dates(monkeypatch)
     case = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal)
     monkeypatch.setattr(
-        cli, "run_many",
+        cli,
+        "run_many",
         lambda *a, **k: [RunResult(case=case, ok=False, error="X")],
     )
     result = runner.invoke(cli.app, ["run", "2024-04-18"])
@@ -87,9 +89,7 @@ def test_run_without_bess_scenario_flag_has_none(monkeypatch):
 
 def test_fetch_calls_ensure_data_for_date_for_each_date_in_range(monkeypatch):
     calls = []
-    monkeypatch.setattr(
-        cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d)
-    )
+    monkeypatch.setattr(cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d))
     result = runner.invoke(cli.app, ["fetch", "2024-04-18:2024-04-19"])
     assert result.exit_code == 0
     assert calls == [date(2024, 4, 18), date(2024, 4, 19)]
@@ -97,9 +97,7 @@ def test_fetch_calls_ensure_data_for_date_for_each_date_in_range(monkeypatch):
 
 def test_fetch_single_date(monkeypatch):
     calls = []
-    monkeypatch.setattr(
-        cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d)
-    )
+    monkeypatch.setattr(cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d))
     result = runner.invoke(cli.app, ["fetch", "2024-04-18"])
     assert result.exit_code == 0
     assert calls == [date(2024, 4, 18)]
@@ -107,9 +105,7 @@ def test_fetch_single_date(monkeypatch):
 
 def test_fetch_month_covers_every_day_including_leap_day(monkeypatch):
     calls = []
-    monkeypatch.setattr(
-        cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d)
-    )
+    monkeypatch.setattr(cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d))
     result = runner.invoke(cli.app, ["fetch", "2024-02"])
     assert result.exit_code == 0
     assert len(calls) == 29
@@ -157,13 +153,17 @@ def test_compare_outer_joins_summaries_on_date_type_scenario(tmp_path):
     a.mkdir()
     b = tmp_path / "b"
     b.mkdir()
-    pd.DataFrame([
-        {"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 1.0},
-    ]).to_csv(a / "metrics-summary.csv", index=False)
-    pd.DataFrame([
-        {"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 2.0},
-        {"date": "2024-04-19", "type": "preideal", "scenario": "baseline", "mae": 3.0},
-    ]).to_csv(b / "metrics-summary.csv", index=False)
+    pd.DataFrame(
+        [
+            {"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 1.0},
+        ]
+    ).to_csv(a / "metrics-summary.csv", index=False)
+    pd.DataFrame(
+        [
+            {"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 2.0},
+            {"date": "2024-04-19", "type": "preideal", "scenario": "baseline", "mae": 3.0},
+        ]
+    ).to_csv(b / "metrics-summary.csv", index=False)
 
     result = runner.invoke(cli.app, ["compare", str(a), str(b)])
     assert result.exit_code == 0

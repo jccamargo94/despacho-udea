@@ -1,5 +1,3 @@
-from datetime import date
-
 import pytest
 
 from app.storage import LocalStorage, get_storage

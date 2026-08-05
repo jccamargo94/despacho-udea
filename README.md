@@ -147,8 +147,9 @@ solver/              # artefactos locales del solver; git-ignored
 
 ## 6. Instalacion local
 
-Requiere Python 3.10+ y un solver compatible con Pyomo. El flujo documentado usa
-**CBC** en el `PATH`.
+Requiere Python 3.12 (gestionado via `uv python install 3.12`, ver
+`.python-version`) y un solver compatible con Pyomo. El flujo documentado
+usa **CBC** en el `PATH`.
 
 En Debian/Ubuntu:
 
@@ -159,28 +160,20 @@ sudo apt-get install coinor-cbc
 Entorno Python:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirement.txt
+uv sync --group dev
 ```
 
-`requirement.txt` es un freeze pesado porque incluye dependencias de notebooks y
-analisis exploratorio. Para runtime, las dependencias centrales son:
+Para trabajar con los notebooks exploratorios de la raiz, agregar el extra:
 
-- `pandas`, `numpy`
-- `pyomo`
-- `thefuzz`
-- `typer`
-- `requests`
-- `plotly` para graficas
-- `openpyxl` / `xlrd` para archivos Excel
-- `pytest` para pruebas
+```bash
+uv sync --group dev --extra notebooks
+```
 
 Verificacion basica:
 
 ```bash
-python -c "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
-pytest -q
+uv run python -c "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
+uv run pytest -q
 ```
 
 ---

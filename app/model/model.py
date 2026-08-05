@@ -3,44 +3,41 @@ from datetime import date
 import pyomo.environ as pyo
 
 from app.model.constraints import (
-    power_output_rule,
-    power_output_min_rule,
-    power_balance_rule,
     exclude_resource_rule,
+    power_balance_rule,
+    power_output_min_rule,
+    power_output_rule,
+)
+from app.model.constraints.bess.soc import (
+    bess_avoid_concurrent_charge_discharge_constraint_rule,
+    bess_max_charge_constraint_rule,
+    bess_max_discharge_constraint_rule,
+    compute_soc_bess,
+    max_soc_bess_constraint_rule,
+    maximize_social_welfare,
+    maximize_social_welfare_as_resource,
+    min_soc_bess_constraint_rule,
+    power_balance_with_bess_rule,
+    same_soc_start_and_end,
 )
 from app.model.constraints.thermal import (
     compute_Lr,
-    minimum_online_time_rule_for_online_gen_rule,
-    minimum_online_time_rule_for_offline_gen_rule,
-    minimum_online_time_for_offline_gen_rule_last_section,
-    power_generation_decomposition,
-    exclusive_ramp_up_effective_constraint,
+    down_ramps_thermal_gen,
     exclusive_ramp_down_effective_constraint,
-    start_up_shut_down_constraints,
-    start_up_zero_on_gen,
+    exclusive_ramp_up_effective_constraint,
+    minimum_online_time_for_offline_gen_rule_last_section,
+    minimum_online_time_rule_for_offline_gen_rule,
+    minimum_online_time_rule_for_online_gen_rule,
+    power_generation_decomposition,
+    shut_down_on_gen,
     shutdown_zero_off_gen,
     start_up_off_gen,
-    shut_down_on_gen,
+    start_up_shut_down_constraints,
+    start_up_zero_on_gen,
     up_ramps_thermal_gen,
-    down_ramps_thermal_gen,
 )
-
-from app.model.constraints.bess.soc import (
-    compute_soc_bess,
-    min_soc_bess_constraint_rule,
-    max_soc_bess_constraint_rule,
-    bess_max_discharge_constraint_rule,
-    bess_max_charge_constraint_rule,
-    bess_avoid_concurrent_charge_discharge_constraint_rule,
-    power_balance_with_bess_rule,
-    maximize_social_welfare,
-    maximize_social_welfare_as_resource,
-    same_soc_start_and_end,
-)
-
-
-from app.schemas.case import DispatchCase, DispatchLevel
 from app.schemas.bess import BessMode
+from app.schemas.case import DispatchCase, DispatchLevel
 
 
 class UnitCommitmentModel:
@@ -65,9 +62,7 @@ class UnitCommitmentModel:
     def load_data(self, folder: str, date: date) -> None: ...
 
     def _create_sets(self, set_data: dict) -> None:
-        self._model.G = pyo.Set(
-            doc="fuel-fired Generators", initialize=set_data.get("G", [])
-        )
+        self._model.G = pyo.Set(doc="fuel-fired Generators", initialize=set_data.get("G", []))
         self._model.I = pyo.Set(doc="Generators", initialize=set_data.get("I", []))
         self._model.T = pyo.Set(doc="Time periods", initialize=set_data.get("T", []))
         self._model.combined_cycle = pyo.Set(
@@ -220,9 +215,7 @@ class UnitCommitmentModel:
 
     def _create_objective(self) -> None:
         def objective_rule(model):
-            return sum(
-                model.beta[i] * model.pout[i, t] for i in model.I for t in model.T
-            ) + sum(
+            return sum(model.beta[i] * model.pout[i, t] for i in model.I for t in model.T) + sum(
                 model.cold_start[g] * model.zup[g, t] for g in model.G for t in model.T
             )
 
@@ -311,19 +304,15 @@ class UnitCommitmentModel:
         self._create_constraints()
         case = self._dispatch_case
         if case.level == DispatchLevel.ideal:
-            self._create_thermal_feature_constraints(
-                set_data=set_data, param_data=param_data
-            )
+            self._create_thermal_feature_constraints(set_data=set_data, param_data=param_data)
         if case.bess_scenario is not None:
             if case.bess_scenario.mode == BessMode.generator:
-                raise NotImplementedError(
-                    "BESS mode 'generator' has no Pyomo formulation yet"
-                )
+                raise NotImplementedError("BESS mode 'generator' has no Pyomo formulation yet")
             self._add_bess_operation(set_data=set_data, param_data=param_data)
 
     def solve(
         self,
-        solver: str = "appsi_highs",
+        solver: str = "cbc",
         solver_params: dict = {},
         compute_prices: bool = True,
         **kwargs,
@@ -343,14 +332,10 @@ class UnitCommitmentModel:
             # tee=True
         )
         if compute_prices:
-            self._solve_pricing_lp(
-                solver=solver, solver_params=solver_params, **kwargs
-            )
+            self._solve_pricing_lp(solver=solver, solver_params=solver_params, **kwargs)
         return results
 
-    def _solve_pricing_lp(
-        self, solver: str = "appsi_highs", solver_params: dict = {}, **kwargs
-    ):
+    def _solve_pricing_lp(self, solver: str = "cbc", solver_params: dict = {}, **kwargs):
         """Fix integers to their MILP solution and re-solve as an LP to obtain
         valid power-balance duals (marginal prices)."""
         fixed_vars = []
@@ -367,9 +352,7 @@ class UnitCommitmentModel:
             var.unfix()
         return pricing_results
 
-    def _create_thermal_feature_constraints(
-        self, set_data: dict, param_data: dict
-    ) -> None:
+    def _create_thermal_feature_constraints(self, set_data: dict, param_data: dict) -> None:
         # Minimum online time constraints
         self._model.minimum_online_time_rule_for_online_gen_rule = pyo.Constraint(
             self._model.gen_on,
@@ -382,13 +365,11 @@ class UnitCommitmentModel:
             rule=minimum_online_time_rule_for_offline_gen_rule,
             doc=minimum_online_time_rule_for_offline_gen_rule.__doc__,
         )
-        self._model.minimum_online_time_for_offline_gen_rule_last_section = (
-            pyo.Constraint(
-                self._model.G,
-                self._model.T,
-                rule=minimum_online_time_for_offline_gen_rule_last_section,
-                doc=minimum_online_time_for_offline_gen_rule_last_section.__doc__,
-            )
+        self._model.minimum_online_time_for_offline_gen_rule_last_section = pyo.Constraint(
+            self._model.G,
+            self._model.T,
+            rule=minimum_online_time_for_offline_gen_rule_last_section,
+            doc=minimum_online_time_for_offline_gen_rule_last_section.__doc__,
         )
 
         # Ramps constraints
@@ -552,13 +533,11 @@ class UnitCommitmentModel:
             doc=bess_max_charge_constraint_rule.__doc__,
         )
 
-        self._model.bess_avoid_concurrent_charge_discharge_constraint_rule = (
-            pyo.Constraint(
-                self._model.BESS,
-                self._model.T,
-                rule=bess_avoid_concurrent_charge_discharge_constraint_rule,
-                doc=bess_avoid_concurrent_charge_discharge_constraint_rule.__doc__,
-            )
+        self._model.bess_avoid_concurrent_charge_discharge_constraint_rule = pyo.Constraint(
+            self._model.BESS,
+            self._model.T,
+            rule=bess_avoid_concurrent_charge_discharge_constraint_rule,
+            doc=bess_avoid_concurrent_charge_discharge_constraint_rule.__doc__,
         )
 
         # --- Modify previous demand constraints ---

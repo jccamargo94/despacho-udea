@@ -2,15 +2,16 @@
 
 Per-case failures are isolated: one bad case does not abort the batch.
 """
+
 import traceback
 
 import pandas as pd
 
-from app.model.model import UnitCommitmentModel
-from app.schemas import DispatchCase, InputPack, InputSource, RunResult
-from app.pipeline.case_builder import build_case
-from app.pipeline.results import save_results, extract_mpo
 from app.data.actuals import load_actual_price
+from app.model.model import UnitCommitmentModel
+from app.pipeline.case_builder import build_case
+from app.pipeline.results import extract_mpo, save_results
+from app.schemas import DispatchCase, InputPack, InputSource, RunResult
 from app.storage import get_storage
 from app.utils.metrics import price_metrics
 

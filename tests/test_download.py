@@ -14,14 +14,14 @@ class _FakeResponse:
 
 
 def test_save_file_writes_via_storage(monkeypatch, tmp_path):
-    calls = iter([
-        _FakeResponse({"ficheros": [{"nombre": "OFEI0418.txt"}]}),
-        _FakeResponse({"url": "https://example.invalid/OFEI0418.txt"}),
-        _FakeResponse(b"file-contents"),
-    ])
-    monkeypatch.setattr(
-        "app.data.download.requests.get", lambda *a, **k: next(calls)
+    calls = iter(
+        [
+            _FakeResponse({"ficheros": [{"nombre": "OFEI0418.txt"}]}),
+            _FakeResponse({"url": "https://example.invalid/OFEI0418.txt"}),
+            _FakeResponse(b"file-contents"),
+        ]
     )
+    monkeypatch.setattr("app.data.download.requests.get", lambda *a, **k: next(calls))
     storage = LocalStorage(str(tmp_path))
     save_file(file_type="OFEI", file_date=date(2024, 4, 18), storage=storage)
     assert (tmp_path / "2024-04-18" / "OFEI0418.txt").read_text() == "file-contents"

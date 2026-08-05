@@ -3,28 +3,40 @@
 Cheap gen A (beta=10, Pmax=100), expensive B (beta=50). demand=150 -> A=100,
 B=50; marginal unit is B so MPO should equal B's cost (50).
 """
+
 from datetime import date
 
 import pandas as pd
 
 from app.model.model import UnitCommitmentModel
 from app.pipeline.case_builder import bess_scenario_to_params
+from app.pipeline.results import extract_bess, extract_dispatch, extract_mpo, save_results
 from app.schemas import DispatchCase, DispatchLevel
 from app.schemas.bess import BessMode, BessScenario, BessUnit
-from app.pipeline.results import extract_mpo, extract_dispatch, extract_bess, save_results
 
 
 def _toy_model():
     set_data = {
-        "G": [], "I": ["A", "B"], "T": [1], "combined_cycle": [],
-        "excluded_resource": {}, "gen_on": [], "gen_off": [],
+        "G": [],
+        "I": ["A", "B"],
+        "T": [1],
+        "combined_cycle": [],
+        "excluded_resource": {},
+        "gen_on": [],
+        "gen_off": [],
     }
     param_data = {
         "Pmin": {("A", 1): 0.0, ("B", 1): 0.0},
         "Pmax": {("A", 1): 100.0, ("B", 1): 100.0},
-        "max_min_op": 0, "ramp_up": {}, "ramp_down": {},
-        "beta": {"A": 10.0, "B": 50.0}, "cold_start": {},
-        "demand": {1: 150.0}, "TMG": {}, "Ton": {}, "z_on_t0_minus_1": {},
+        "max_min_op": 0,
+        "ramp_up": {},
+        "ramp_down": {},
+        "beta": {"A": 10.0, "B": 50.0},
+        "cold_start": {},
+        "demand": {1: 150.0},
+        "TMG": {},
+        "Ton": {},
+        "z_on_t0_minus_1": {},
     }
     case = DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal)
     m = UnitCommitmentModel(case=case)
@@ -61,31 +73,53 @@ def test_save_results_writes_csvs(tmp_path):
 def _bess_case_and_model():
     ts = [1]
     set_data = {
-        "G": [], "I": ["A"], "T": ts, "combined_cycle": [],
-        "excluded_resource": {}, "gen_on": [], "gen_off": [],
+        "G": [],
+        "I": ["A"],
+        "T": ts,
+        "combined_cycle": [],
+        "excluded_resource": {},
+        "gen_on": [],
+        "gen_off": [],
     }
     param_data = {
         "Pmin": {("A", 1): 0.0},
         "Pmax": {("A", 1): 100.0},
-        "max_min_op": 0, "ramp_up": {}, "ramp_down": {},
-        "beta": {"A": 50.0}, "cold_start": {},
-        "demand": {1: 80.0}, "TMG": {}, "Ton": {}, "z_on_t0_minus_1": {},
+        "max_min_op": 0,
+        "ramp_up": {},
+        "ramp_down": {},
+        "beta": {"A": 50.0},
+        "cold_start": {},
+        "demand": {1: 80.0},
+        "TMG": {},
+        "Ton": {},
+        "z_on_t0_minus_1": {},
     }
     scenario = BessScenario(
-        mode=BessMode.arbitrage, penetration_level="test",
-        units=[BessUnit(
-            name="B1", mwh_nom=40.0, hours_to_deplete=4.0, initial_soc=0.5,
-            min_soc=0.1, max_soc=0.9, efficiency=0.9,
-            charge_bid=5.0, discharge_bid=45.0,
-        )],
+        mode=BessMode.arbitrage,
+        penetration_level="test",
+        units=[
+            BessUnit(
+                name="B1",
+                mwh_nom=40.0,
+                hours_to_deplete=4.0,
+                initial_soc=0.5,
+                min_soc=0.1,
+                max_soc=0.9,
+                efficiency=0.9,
+                charge_bid=5.0,
+                discharge_bid=45.0,
+            )
+        ],
     )
     bess_names, bess_params = bess_scenario_to_params(scenario)
     set_data["BESS"] = bess_names
     param_data.update(bess_params)
 
     case = DispatchCase(
-        dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal,
-        bess_scenario=scenario, solver="cbc",
+        dispatch_date=date(2024, 4, 18),
+        level=DispatchLevel.preideal,
+        bess_scenario=scenario,
+        solver="cbc",
     )
     m = UnitCommitmentModel(case=case)
     m.create_model(set_data=set_data, param_data=param_data)
@@ -125,6 +159,7 @@ def test_extract_bess_cost_formula_with_nonzero_charge():
     charge=0, so its cost assertion never actually exercises the cost
     formula. Call extract_bess directly with a stubbed model where charge is
     nonzero to cover that branch of the formula for real."""
+
     class _Inner:
         bess_charge = {("B1", 1): 5.0}
         bess_discharge = {("B1", 1): 0.0}
@@ -145,6 +180,7 @@ def test_extract_bess_revenue_order_of_magnitude_at_realistic_price():
     """Colombian bolsa prices are roughly 200,000-800,000 COP/MWh. This test
     uses a realistic price and discharge to catch a reintroduced stray
     x1000 (or /1000) scaling error that a toy-LP-scale test wouldn't."""
+
     class _Inner:
         bess_charge = {("B1", 1): 0.0}
         bess_discharge = {("B1", 1): 10.0}
@@ -169,30 +205,51 @@ def test_save_results_without_bess_scenario_has_no_bess_fields(tmp_path):
 def _grid_asset_case_and_model():
     ts = [1]
     set_data = {
-        "G": [], "I": ["A"], "T": ts, "combined_cycle": [],
-        "excluded_resource": {}, "gen_on": [], "gen_off": [],
+        "G": [],
+        "I": ["A"],
+        "T": ts,
+        "combined_cycle": [],
+        "excluded_resource": {},
+        "gen_on": [],
+        "gen_off": [],
     }
     param_data = {
         "Pmin": {("A", 1): 0.0},
         "Pmax": {("A", 1): 100.0},
-        "max_min_op": 0, "ramp_up": {}, "ramp_down": {},
-        "beta": {"A": 50.0}, "cold_start": {},
-        "demand": {1: 80.0}, "TMG": {}, "Ton": {}, "z_on_t0_minus_1": {},
+        "max_min_op": 0,
+        "ramp_up": {},
+        "ramp_down": {},
+        "beta": {"A": 50.0},
+        "cold_start": {},
+        "demand": {1: 80.0},
+        "TMG": {},
+        "Ton": {},
+        "z_on_t0_minus_1": {},
     }
     scenario = BessScenario(
-        mode=BessMode.grid_asset, penetration_level="test",
-        units=[BessUnit(
-            name="B1", mwh_nom=40.0, hours_to_deplete=4.0, initial_soc=0.5,
-            min_soc=0.1, max_soc=0.9, efficiency=0.9,
-        )],
+        mode=BessMode.grid_asset,
+        penetration_level="test",
+        units=[
+            BessUnit(
+                name="B1",
+                mwh_nom=40.0,
+                hours_to_deplete=4.0,
+                initial_soc=0.5,
+                min_soc=0.1,
+                max_soc=0.9,
+                efficiency=0.9,
+            )
+        ],
     )
     bess_names, bess_params = bess_scenario_to_params(scenario)
     set_data["BESS"] = bess_names
     param_data.update(bess_params)
 
     case = DispatchCase(
-        dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal,
-        bess_scenario=scenario, solver="cbc",
+        dispatch_date=date(2024, 4, 18),
+        level=DispatchLevel.preideal,
+        bess_scenario=scenario,
+        solver="cbc",
     )
     m = UnitCommitmentModel(case=case)
     m.create_model(set_data=set_data, param_data=param_data)

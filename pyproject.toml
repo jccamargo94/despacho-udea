@@ -1,0 +1,71 @@
+[project]
+name = "despacho-udea"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas==2.2.2",
+    "numpy==1.26.4",
+    "Pyomo==6.7.3",
+    "highspy==1.7.2",
+    "thefuzz==0.22.1",
+    "rapidfuzz==3.9.6",
+    "typer>=0.12",
+    "requests",
+    "plotly==5.23.0",
+    "openpyxl==3.1.5",
+    "xlrd==2.0.1",
+    "pydantic==2.11.10",
+    "PyYAML==6.0.1",
+    "pydataxm==0.3.6",
+]
+
+[project.optional-dependencies]
+notebooks = [
+    "scikit-learn==1.4.2",
+    "matplotlib==3.9.1",
+    "holidays",
+    "cloudpickle",
+    "jupyterlab==4.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff==0.11.13",
+    "pre-commit==4.6.1",
+    "ty==0.0.66",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["*.ipynb", "run_dispatch.py", "get_date_results.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+# Deviations from the brief's verbatim minimal config, scoped to pre-existing
+# findings that ruff --fix/format cannot resolve mechanically. Each is a
+# behavior-preserving suppression, not a rule-set widening decision (that
+# stays out of scope per the brief). Re-evaluate when the underlying code is
+# touched/validated.
+[tool.ruff.lint.per-file-ignores]
+# DataLoader class is unreferenced anywhere in the codebase (confirmed via
+# repo-wide grep) and its nested helper functions read free variables that
+# were never parameters/locals — a pre-existing bug in dead code, not
+# something to hand-fix under a tooling-only task. Matches the known
+# "case_builder XM-load still unvalidated" status.
+"app/model/load_data.py" = ["F821"]
+# Local vars computed but never used downstream; deleting the assignments
+# would remove code that currently executes (pandas set_index/query calls),
+# which is a behavior change outside this task's tooling-only scope.
+"app/pipeline/case_builder.py" = ["F841"]
+# Re-export pattern: names imported here for `from app.model.constraints.bess
+# import X` convenience, but nothing currently imports through the package
+# (call sites use `bess.soc` directly). Unlike the sibling `thermal/__init__.py`,
+# this one never got an `__all__`. Adding one is a package-API decision, not a
+# tooling change, so it's left as a suppressed finding rather than guessed at.
+"app/model/constraints/bess/__init__.py" = ["F401"]

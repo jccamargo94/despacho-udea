@@ -1,11 +1,10 @@
+import os
 from datetime import date
 from pathlib import Path
-import os
 
 import requests
 
 from app.storage import Storage, get_storage
-
 
 PARAMS = {
     "OFEI": {
@@ -25,7 +24,9 @@ PARAMS = {
     },
 }
 
-XM_DOWNLOAD_URL = "https://app-portalxmcore01.azurewebsites.net/administracion-archivos/ficheros/descarga-archivo"
+XM_DOWNLOAD_URL = (
+    "https://app-portalxmcore01.azurewebsites.net/administracion-archivos/ficheros/descarga-archivo"
+)
 
 
 def save_file(file_type: str, file_date: date, storage: Storage) -> None:
