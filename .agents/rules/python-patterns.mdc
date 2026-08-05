@@ -1,0 +1,78 @@
+---
+description: Python conventions actually used in despacho-udea (not a generic template)
+alwaysApply: true
+---
+
+# Python — convenciones de despacho-udea
+
+Estas son las convenciones **reales** de este repo, verificadas contra el
+codigo, no un template generico. Si algo aqui contradice lo que ve en el
+codigo, el codigo gana — actualice este archivo.
+
+## Dependencias y runtime
+
+- Python 3.12, `uv` + `pyproject.toml`/`uv.lock`. `[tool.uv] package = false`
+  — `uv` gestiona el venv/deps, no intenta construir `app` como wheel.
+- Dos grupos de dependencias: runtime (imagen Docker futura) y `notebooks`
+  (opcional, fuera de la imagen — derivado de los imports reales de los
+  `.ipynb`, no copiado de un freeze viejo).
+- `pytest` es **dev-only**, nunca runtime.
+- No agregar una dependencia nueva para algo que uv/stdlib/una dependencia ya
+  instalada resuelve en pocas lineas.
+
+## Pydantic v2 (no v1)
+
+- `BaseModel` piano para schemas sin validacion custom (`InputPack`,
+  `RunResult`, `DispatchCase`, `BessUnit`).
+- Un solo `@field_validator` en todo el repo (`app/schemas/bess.py`,
+  `BessScenario._check_bids`) — usa `@classmethod` + `info: ValidationInfo`
+  + `info.data.get(...)` (no el `values` dict de v1). El orden de
+  declaracion de campos importa: un campo solo esta en `info.data` si se
+  declaro antes en el modelo.
+- No usar `Config` class ni `validator` (v1) — si aparece, es codigo viejo
+  sin migrar, repórtelo.
+
+## Storage, no `open()` directo para I/O de la app
+
+- Toda lectura/escritura de datos pasa por `app.storage.get_storage(root)` ->
+  `LocalStorage` (o el backend que corresponda). Excepcion documentada y
+  deliberada: dos bloques `open(resolve_input(...))` en `case_builder.py`
+  para `dCondIniP`/`dCondIniU` (decision de Fase 1, no reabrir sin razon
+  nueva).
+- `app.data.paths.resolve_input(kind, date, data_dir)` es la unica forma de
+  resolver un path de archivo por fecha — prueba el layout organizado
+  primero, cae al layout plano `data_dir/{fecha}/`. No hardcodear paths.
+
+## Pyomo / modelo
+
+- Solver default es `"cbc"` en `DispatchCase.solver` y `--solver` de la CLI
+  — no cambiar sin releer `docs/superpowers/specs/2026-08-05-fase2-docker-design.md`
+  seccion 3 (hallazgo verificado: `appsi_highs` via wrapper legacy revienta
+  en todo solve, no solo en pricing).
+- Precios marginales (MPO) requieren el resolve LP de fix-and-resolve
+  (`_solve_pricing_lp`) — no se leen duales directos de una solucion MILP.
+- `param_data["Pmin"]` en `case_builder.py` esta hardcodeado a `{}` — el
+  `Pmin` calculado de OFEI `MO` nunca llega al modelo (Pyomo usa
+  `default=max_min_op` para todo par no presente). Es codigo muerto
+  conocido, no un bug a "arreglar" sin entender por que quedo asi primero.
+
+## Testing
+
+- Fixtures de archivos van bajo `tests/fixtures/`, ancladas con
+  `Path(__file__).parent`, nunca con un string relativo al cwd.
+- `tests/fixtures/**/*.csv` esta exceptuado del `.gitignore` global `*.csv`
+  — cualquier fixture CSV nueva fuera de ese path se pierde en silencio si
+  no se agrega una excepcion.
+- No mockear `build_case` con casos de juguete cuando el objetivo es
+  validar el parsing XM real — usar `tests/fixtures/xm_smoke/` o extenderlo.
+
+## Lint/format
+
+- `ruff` (`select = ["E", "F", "I"]`, `line-length = 100`) bloqueante en
+  pre-commit. `ty` corre en modo informativo (`stages: [manual]`), no
+  bloquea — no lo vuelva bloqueante sin decision explicita del usuario (la
+  primera corrida seria una pared de errores en un repo que nunca paso por
+  un type-checker).
+- `per-file-ignores` en `pyproject.toml` son deliberados y documentados
+  inline (dead code conocido, no negligencia) — no los borre para "limpiar"
+  sin entender por que existen.
