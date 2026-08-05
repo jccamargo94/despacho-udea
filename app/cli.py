@@ -5,12 +5,14 @@
     python -m app run 2024-04 --no-eval
 """
 
-from datetime import date, datetime
+import calendar
+from datetime import date, datetime, timedelta
 
 import typer
 
 from app.schemas import DispatchCase, DispatchLevel
 from app.dates import parse_dates_arg
+from app.data.download import ensure_data_for_date
 from app.pipeline.runner import run_many
 from app.pipeline.scenarios import load_bess_scenario
 from app.storage import get_storage
@@ -96,3 +98,32 @@ def run(
     for r in failed:
         typer.echo(f"  FAIL {r.case.dispatch_date} [{r.case.level.value}]: {r.error}")
     raise typer.Exit(code=1 if failed else 0)
+
+
+def _enumerate_dates(token: str) -> list[date]:
+    """Enumerate every date in `token`, with no filtering against what's
+    already on disk (unlike parse_dates_arg) — fetch's whole point is to
+    reach dates that aren't available locally yet."""
+    token = token.strip()
+    if ":" in token:
+        lo, hi = (datetime.strptime(p.strip(), "%Y-%m-%d").date() for p in token.split(":", 1))
+        return [lo + timedelta(days=i) for i in range((hi - lo).days + 1)]
+    parts = token.split("-")
+    if len(parts) == 2:
+        year, month = int(parts[0]), int(parts[1])
+        days_in_month = calendar.monthrange(year, month)[1]
+        return [date(year, month, d) for d in range(1, days_in_month + 1)]
+    return [datetime.strptime(token, "%Y-%m-%d").date()]
+
+
+@app.command()
+def fetch(
+    dates: str = typer.Argument(..., help="YYYY-MM-DD | range a:b | YYYY-MM"),
+    data_dir: str = typer.Option("data", help="input data directory"),
+):
+    """Download raw XM inputs for the given date(s) without running the model."""
+    selected = _enumerate_dates(dates)
+    for d in selected:
+        typer.echo(f"==> fetching {d}")
+        ensure_data_for_date(d, data_dir=data_dir)
+    typer.echo(f"Done: fetched {len(selected)} date(s).")

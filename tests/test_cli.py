@@ -82,3 +82,23 @@ def test_run_without_bess_scenario_flag_has_none(monkeypatch):
     monkeypatch.setattr(cli, "run_many", fake_run_many)
     runner.invoke(cli.app, ["run", "2024-04-18", "-t", "preideal"])
     assert captured["cases"][0].bess_scenario is None
+
+
+def test_fetch_calls_ensure_data_for_date_for_each_date_in_range(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d)
+    )
+    result = runner.invoke(cli.app, ["fetch", "2024-04-18:2024-04-19"])
+    assert result.exit_code == 0
+    assert calls == [date(2024, 4, 18), date(2024, 4, 19)]
+
+
+def test_fetch_single_date(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        cli, "ensure_data_for_date", lambda d, data_dir: calls.append(d)
+    )
+    result = runner.invoke(cli.app, ["fetch", "2024-04-18"])
+    assert result.exit_code == 0
+    assert calls == [date(2024, 4, 18)]
