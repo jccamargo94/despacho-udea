@@ -1,0 +1,1 @@
+Recurso,Tipo,Gini-1,Cini-1
