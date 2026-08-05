@@ -111,3 +111,64 @@ def test_evaluate_matches_inline_eval_exactly(monkeypatch, tmp_path):
         assert abs(value - post_hoc_metrics[key]) < 1e-9, (
             f"{key}: inline={value} post_hoc={post_hoc_metrics[key]}"
         )
+
+
+def test_evaluate_saved_run_upserts_metrics_summary_csv(tmp_path):
+    price_df = pd.DataFrame(
+        {
+            "datetime": pd.date_range("2024-04-18", periods=24, freq="1h"),
+            "ideal_marginal_price": [float(i) for i in range(24)],
+        }
+    )
+    price_df.to_csv(tmp_path / "marginal_price-2024-04-18-preideal.csv", index=False)
+
+    actuals_dir = tmp_path / "preideal_price"
+    actuals_dir.mkdir()
+    row = "MPO," + ",".join(str(float(i)) for i in range(24))
+    (actuals_dir / "2024-04-18.txt").write_text(row + "\n")
+
+    # pre-existing row for a different date must survive the upsert
+    pd.DataFrame(
+        [{"date": "2024-04-17", "type": "preideal", "scenario": "baseline", "mae": 99.0}]
+    ).to_csv(tmp_path / "metrics-summary.csv", index=False)
+
+    evaluate_saved_run(
+        date(2024, 4, 18), DispatchLevel.preideal, out=str(tmp_path), data_dir=str(tmp_path)
+    )
+
+    summary = pd.read_csv(tmp_path / "metrics-summary.csv")
+    assert len(summary) == 2
+    new_row = summary[summary["date"] == "2024-04-18"].iloc[0]
+    assert new_row["type"] == "preideal"
+    assert new_row["scenario"] == "baseline"
+    assert new_row["mae"] == 0.0
+    old_row = summary[summary["date"] == "2024-04-17"].iloc[0]
+    assert old_row["mae"] == 99.0
+
+
+def test_evaluate_saved_run_replaces_stale_row_for_same_key(tmp_path):
+    price_df = pd.DataFrame(
+        {
+            "datetime": pd.date_range("2024-04-18", periods=24, freq="1h"),
+            "ideal_marginal_price": [float(i) for i in range(24)],
+        }
+    )
+    price_df.to_csv(tmp_path / "marginal_price-2024-04-18-preideal.csv", index=False)
+
+    actuals_dir = tmp_path / "preideal_price"
+    actuals_dir.mkdir()
+    row = "MPO," + ",".join(str(float(i)) for i in range(24))
+    (actuals_dir / "2024-04-18.txt").write_text(row + "\n")
+
+    # stale row for the SAME key must be replaced, not duplicated
+    pd.DataFrame(
+        [{"date": "2024-04-18", "type": "preideal", "scenario": "baseline", "mae": 999.0}]
+    ).to_csv(tmp_path / "metrics-summary.csv", index=False)
+
+    evaluate_saved_run(
+        date(2024, 4, 18), DispatchLevel.preideal, out=str(tmp_path), data_dir=str(tmp_path)
+    )
+
+    summary = pd.read_csv(tmp_path / "metrics-summary.csv")
+    assert len(summary) == 1
+    assert summary.iloc[0]["mae"] == 0.0

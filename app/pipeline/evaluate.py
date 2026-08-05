@@ -14,6 +14,31 @@ from app.storage import get_storage
 from app.utils.metrics import price_metrics
 
 
+def _upsert_metrics_summary(
+    storage, dispatch_date: date, level: DispatchLevel, metrics: dict[str, float]
+) -> None:
+    """Upsert this run's row into metrics-summary.csv, keyed on
+    (date, type, scenario). Without this, a `run --no-eval` -> `evaluate`
+    -> `compare` flow never sees post-hoc metrics: `run_many` only writes
+    metrics-summary.csv once, at the end of a batch, and evaluate_saved_run
+    previously only wrote the per-run metrics-{date}-{level}.csv file."""
+    row = {"date": str(dispatch_date), "type": level.value, "scenario": "baseline", **metrics}
+    summary_path = "metrics-summary.csv"
+    if storage.exists(summary_path):
+        with storage.open(summary_path) as f:
+            summary = pd.read_csv(f)
+        stale = (
+            (summary["date"] == row["date"])
+            & (summary["type"] == row["type"])
+            & (summary["scenario"] == row["scenario"])
+        )
+        summary = pd.concat([summary[~stale], pd.DataFrame([row])], ignore_index=True)
+    else:
+        summary = pd.DataFrame([row])
+    with storage.open(summary_path, "w") as f:
+        summary.to_csv(f, index=False)
+
+
 def evaluate_saved_run(
     dispatch_date: date,
     level: DispatchLevel,
@@ -38,4 +63,5 @@ def evaluate_saved_run(
     metrics_name = f"metrics-{dispatch_date}-{t}.csv"
     with storage.open(metrics_name, "w") as f:
         pd.DataFrame([metrics]).to_csv(f, index=False)
+    _upsert_metrics_summary(storage, dispatch_date, level, metrics)
     return metrics
