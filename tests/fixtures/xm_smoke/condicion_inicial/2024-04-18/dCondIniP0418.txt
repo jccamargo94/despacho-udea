@@ -1,0 +1,3 @@
+Recurso,Tipo,Gpini-1,Conf_Pini-1,T_CONF_Pini-1
+TERMO1,T,150,CONF1,5
+TERMO2,T,0,CONF0,0
