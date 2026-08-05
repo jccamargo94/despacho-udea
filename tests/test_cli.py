@@ -51,3 +51,34 @@ def test_available_dates_reads_condicion_inicial_dirs(tmp_path):
     (root / "notes.txt").write_text("not a date dir")
     dates = cli._available_dates(str(tmp_path))
     assert sorted(dates) == [date(2024, 4, 18), date(2024, 4, 19)]
+
+
+def test_run_loads_bess_scenario(monkeypatch):
+    _stub_dates(monkeypatch)
+    captured = {}
+
+    def fake_run_many(cases, **k):
+        captured["cases"] = cases
+        return [RunResult(case=c, ok=True) for c in cases]
+
+    monkeypatch.setattr(cli, "run_many", fake_run_many)
+    result = runner.invoke(
+        cli.app, ["run", "2024-04-18", "-t", "preideal", "--bess-scenario", "20pct_arbitrage"]
+    )
+    assert result.exit_code == 0
+    case = captured["cases"][0]
+    assert case.bess_scenario is not None
+    assert case.bess_scenario.penetration_level == "20pct"
+
+
+def test_run_without_bess_scenario_flag_has_none(monkeypatch):
+    _stub_dates(monkeypatch)
+    captured = {}
+
+    def fake_run_many(cases, **k):
+        captured["cases"] = cases
+        return [RunResult(case=c, ok=True) for c in cases]
+
+    monkeypatch.setattr(cli, "run_many", fake_run_many)
+    runner.invoke(cli.app, ["run", "2024-04-18", "-t", "preideal"])
+    assert captured["cases"][0].bess_scenario is None

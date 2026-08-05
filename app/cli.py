@@ -12,6 +12,7 @@ import typer
 from app.schemas import DispatchCase, DispatchLevel
 from app.dates import parse_dates_arg
 from app.pipeline.runner import run_many
+from app.pipeline.scenarios import load_bess_scenario
 from app.storage import get_storage
 
 app = typer.Typer(add_completion=False, help="Colombian dispatch model runner.")
@@ -58,6 +59,9 @@ def run(
     prices: bool = typer.Option(
         True, "--prices/--no-prices", help="fix-integers LP pricing re-solve"
     ),
+    bess_scenario: str = typer.Option(
+        None, "--bess-scenario", help="named scenario (scenarios/bess/<name>.yaml) or path to a scenario YAML"
+    ),
     skip_dates: str = typer.Option("", help="comma-separated YYYY-MM-DD to skip"),
     out: str = typer.Option("data/results", help="results directory"),
     data_dir: str = typer.Option("data", help="input data directory"),
@@ -67,9 +71,14 @@ def run(
     skip = _parse_skip(skip_dates)
     selected = [d for d in selected if d not in skip]
 
+    scenario = load_bess_scenario(bess_scenario) if bess_scenario else None
+
     levels = list(DispatchLevel) if "all" in type else [DispatchLevel(t) for t in type]
     cases = [
-        DispatchCase(dispatch_date=d, level=lvl, solver=solver, compute_prices=prices)
+        DispatchCase(
+            dispatch_date=d, level=lvl, solver=solver, compute_prices=prices,
+            bess_scenario=scenario,
+        )
         for d in selected
         for lvl in levels
     ]
