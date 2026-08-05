@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator, ValidationInfo
 
 
 class BessMode(str, Enum):
@@ -26,9 +26,10 @@ class BessScenario(BaseModel):
     penetration_level: str
     units: list[BessUnit]
 
-    @validator("units")
-    def _check_bids(cls, units: list[BessUnit], values: dict) -> list[BessUnit]:
-        mode = values.get("mode")
+    @field_validator("units")
+    @classmethod
+    def _check_bids(cls, units: list[BessUnit], info: ValidationInfo) -> list[BessUnit]:
+        mode = info.data.get("mode")
         for u in units:
             if mode == BessMode.arbitrage and u.charge_bid is None:
                 raise ValueError(f"{u.name}: charge_bid required in mode arbitrage")

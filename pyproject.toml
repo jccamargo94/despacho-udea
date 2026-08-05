@@ -14,7 +14,7 @@ dependencies = [
     "plotly==5.23.0",
     "openpyxl==3.1.5",
     "xlrd==2.0.1",
-    "pydantic==1.10.18",
+    "pydantic==2.11.10",
     "PyYAML==6.0.1",
     "pydataxm==0.3.6",
 ]
