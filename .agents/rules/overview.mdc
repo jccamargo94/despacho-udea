@@ -1,0 +1,94 @@
+---
+description: Always-on project context for despacho-udea — domain, layout, workflow, known gotchas
+alwaysApply: true
+---
+
+# despacho-udea — contexto siempre activo
+
+Modelo academico de despacho electrico colombiano (Pyomo, unit commitment),
+comparado contra datos publicados por XM, con soporte para escenarios BESS.
+Vision completa, mapa del repo y estado detallado: [`README.md`](../../README.md)
+(secciones 1-14, incluye "Notas para agentes de IA" en la 14). Hoja de ruta de
+fases: [`docs/roadmap-aplicacion-despacho.md`](../../docs/roadmap-aplicacion-despacho.md).
+
+## Layout rapido
+
+- `app/model/` — `UnitCommitmentModel` (Pyomo) + restricciones (`app/model/constraints/`).
+- `app/data/` — descarga (`download.py`), parsing OFEI (`ofei.py`), loaders CSV
+  (`loaders.py`), resolucion de rutas historicas/live (`paths.py`), datos
+  reales XM para evaluacion (`actuals.py`).
+- `app/pipeline/` — `case_builder.py` (fecha+config -> set_data/param_data para
+  Pyomo, la pieza mas fragil del repo), `runner.py` (build->solve->save->evaluate),
+  `results.py`, `evaluate.py`, `scenarios.py` (BESS declarativo).
+- `app/schemas/` — modelos pydantic v2 (`DispatchCase`, `InputPack`, `RunResult`,
+  `BessScenario`/`BessUnit`/`BessMode`). Reemplazaron `DispatchConfig`/
+  `DispatchOptions` string-encoded (ver `docs/superpowers/specs/2026-08-04-domain-interfaces-design.md`).
+- `app/storage/` — abstraccion `Storage`/`LocalStorage`/`get_storage`; toda
+  lectura/escritura de archivos pasa por aqui (GCS deliberadamente diferido,
+  `gs://` -> `NotImplementedError`).
+- `app/cli.py` — Typer: `run`, `fetch`, `evaluate`, `compare`.
+- `tests/fixtures/xm_smoke/` — fixture sintetico que sobrevive `build_case`
+  completo (2 termicos, `level=preideal`, fecha 2024-04-18); ver
+  `tests/test_xm_smoke_*.py` para las 4 capas de verificacion.
+- `data/` — insumos/resultados, **git-ignored**. No asuma que existe.
+- `docs/superpowers/{specs,plans}/` — historial de diseno e implementacion,
+  un par spec+plan por fase/feature. Lea el mas reciente antes de tocar algo
+  que ya paso por ahi.
+
+## Toolchain
+
+- Python **3.12**, gestionado con **`uv`** (`pyproject.toml` + `uv.lock`, no
+  `requirement.txt` — eso fue reemplazado en Fase 2A, PR #3).
+- `uv sync --group dev` para instalar; `uv run <cmd>` para ejecutar.
+- Pins que importan y por que:
+  - `pandas==2.2.2` — comportamiento de `.stack()` en frames vacios
+    (`case_builder.py`, `ofei.py`) fue verificado contra esta version exacta.
+    No dejar que un resolver lo mueva sin re-verificar.
+  - `numpy==1.26.4` (`numpy<2`) — Pyomo 6.7.3 usa `np.float_`, removido en
+    NumPy 2.0; sin este pin, `import pyomo.environ` falla en seco.
+  - Solver default es **`cbc`**, no `appsi_highs` — `pyo.SolverFactory("appsi_highs")`
+    revienta en *todo* solve via el wrapper legacy de Pyomo (bug real, causa
+    raiz aislada, documentado en `docs/superpowers/specs/2026-08-05-fase2-docker-design.md`
+    seccion 3). `highspy` esta instalado pero no es un solver alternativo
+    usable hoy.
+- Pre-commit: `ruff` (lint+format) **bloqueante**; `ty` **informativo**
+  (`stages: [manual]`, no bloquea commits — el repo nunca paso por un
+  type-checker, correrlo bloqueante ahora bloquearia todo).
+- Tests: `uv run pytest -q`.
+
+## Flujo de trabajo (superpowers)
+
+Cada fase/feature no trivial sigue: brainstorming/spec (si aplica) ->
+`superpowers:writing-plans` (spec+plan en `docs/superpowers/{specs,plans}/`) ->
+`superpowers:subagent-driven-development` en una rama nueva (`fase<N><letra>-<nombre>`,
+p.ej. `fase2a-toolchain`, `fase2b-fixture`) -> tests verdes -> PR contra `develop`.
+No commitear directo a `develop`. No usar `.worktrees/` manual si `EnterWorktree`
+nativo esta disponible.
+
+## Gotchas verificados (no re-derivar, ya se pago el costo de encontrarlos)
+
+- **Unidades**: `dispo_declarada.csv` esta en **kW** (`case_builder.py` x1e-3 ->
+  MW); `ofertas.csv` en **COP/kWh** (x1e3 -> COP/MWh); `PrId*.txt` (demanda
+  preideal) se usa **crudo, sin escalar** — mismo tipo de bug que ya causo un
+  revenue de BESS inflado 1000x en Fase 1. Verifique contra el codigo real
+  antes de asumir una convencion de unidades.
+- **`case_builder.build_case`** ya fue validado end-to-end contra datos
+  sinteticos con formato real XM (Fase 2B) — pero sigue sin validar contra
+  datos historicos reales descargados de XM. No afirme "funciona con datos
+  reales" solo porque los tests de fixture pasan.
+- **`thefuzz` guards**: `price_bid_map`, `CC_MAP`, `generators_pap_map` en
+  `case_builder.py` usan `extractOne(..., score_cutoff=70)[0]` — un match
+  bajo 70 revienta `TypeError` sobre `None`. Nombres de recurso deben ser
+  identicos o >70% similares entre todos los archivos de un mismo caso.
+- **`ensure_data_for_date`** (`app/data/download.py`) chequea el layout
+  *plano* `data_dir/{fecha}/`; `resolve_input` (`app/data/paths.py`) prefiere
+  el layout *organizado* (`oferta_inicial/`, `condicion_inicial/{fecha}/`,
+  `predespacho_ideal/`) y cae al plano. Un fixture/caso nuevo necesita
+  satisfacer ambos o dispara una descarga real (rompe smoke tests offline).
+- **`.gitignore` tiene un `*.csv` global** — cualquier fixture CSV nuevo bajo
+  `tests/fixtures/` necesita una excepcion explicita o se descarta en
+  silencio del commit (`tests/fixtures/**/*.csv` ya esta exceptuado).
+- **Rutas de fixtures en tests**: anclar siempre con `Path(__file__).parent`,
+  nunca con un string relativo al cwd (`tests/test_ofei.py:6` es el patron
+  canonico). Un string relativo pasa cuando pytest corre desde la raiz del
+  repo y falla desde cualquier otro cwd o en CI.
