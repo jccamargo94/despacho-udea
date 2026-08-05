@@ -11,6 +11,11 @@ from pathlib import Path
 
 from app.storage import get_storage
 
+# Per file kind: ordered list of candidate subdirectories (relative to data_dir).
+# "{date}" is substituted with the dispatch date. "" means data_dir itself --
+# note an empty sub currently makes `rel` start with "/", which pathlib's
+# `root / rel` join treats as an absolute-path override (checks filesystem
+# root, not data_dir). No entry below uses "", so this is latent, not live.
 CANDIDATE_SUBDIRS = {
     "OFEI": ["oferta_inicial", "{date}"],
     "dCondIniP": ["condicion_inicial/{date}", "{date}"],

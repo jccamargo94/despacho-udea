@@ -11,7 +11,7 @@ from app.storage import get_storage
 def load_actual_price(dispatch_date: date, data_dir: str = "data") -> np.ndarray:
     """XM marginal price (MPO) for the date as a 24-length float array."""
     storage = get_storage(data_dir)
-    with storage.open(f"preideal_price/{dispatch_date}.txt") as f:
+    with storage.open(f"preideal_price/{dispatch_date}.txt", "rb") as f:
         df = pd.read_csv(f, header=None)
     return df.iloc[0, 1:].astype(float).values
 
