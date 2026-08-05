@@ -107,7 +107,7 @@ escenario BESS, en vez de depender solo del nombre del `dispatch_type`.
 
 ```text
 app/
-  cli.py            # CLI Typer: python -m app run ...
+  cli.py            # CLI Typer: run, fetch, evaluate, compare
   __main__.py       # habilita python -m app
   dates.py          # parsing de fechas: dia, rango, mes o todo
   model/            # UnitCommitmentModel y restricciones Pyomo
@@ -119,12 +119,16 @@ app/
     paths.py        # resuelve ubicaciones historicas y descargadas
   pipeline/
     case_builder.py # fecha + configuracion -> set_data, param_data, meta
-    results.py      # extrae MPO/despacho y guarda resultados
+    results.py      # extrae MPO/despacho/BESS y guarda resultados
     runner.py       # orquesta build -> solve -> save -> evaluate
+    evaluate.py      # re-score post-hoc de una corrida ya guardada
+    scenarios.py     # carga escenarios BESS declarativos (scenarios/bess/*.yaml)
+  storage/           # abstraccion Storage (LocalStorage hoy; GCS a futuro)
   utils/
     metrics.py      # metricas de evaluacion
     misc.py         # compatibilidad hacia app.data.download
 
+scenarios/bess/      # escenarios BESS declarativos (YAML) usados por --bess-scenario
 run_dispatch.py     # runner legado de una fecha; conserva compatibilidad
 get_date_results.py # runner legado batch
 *.ipynb             # notebooks exploratorios y ETL no migrado
@@ -244,7 +248,14 @@ no esta migrada por completo a la aplicacion.
 
 ## 8. Como ejecutar
 
-La CLI es el camino recomendado:
+La CLI es el camino recomendado. Tiene cuatro comandos:
+
+| comando | que hace |
+| --- | --- |
+| `run` | Construye y resuelve casos de despacho por fecha/tipo, guarda resultados y (opcionalmente) evalua contra XM. |
+| `fetch` | Descarga insumos crudos de XM para una o mas fechas, sin correr el modelo. |
+| `evaluate` | Re-calcula metricas de una corrida ya guardada contra XM, sin volver a resolver el modelo. |
+| `compare` | Hace un outer join de `metrics-summary.csv` de dos corridas para comparar escenarios. |
 
 ```bash
 python -m app run 2024-04-18
@@ -252,6 +263,9 @@ python -m app run 2024-04-18 -t ideal
 python -m app run 2024-04-18:2024-04-30 -t all
 python -m app run 2024-04
 python -m app run
+python -m app fetch 2024-04-18:2024-04-30
+python -m app evaluate 2024-04-18 -t preideal
+python -m app compare data/results/baseline data/results/20pct_arbitrage
 ```
 
 Opciones utiles:
@@ -373,16 +387,14 @@ Antes de construir API/frontend, conviene cerrar estas piezas:
 
 ### Fases sugeridas
 
-1. **Estabilizar el core:** validar `case_builder`, completar salidas BESS y
-   separar configuracion de escenarios.
-2. **Completar CLI:** agregar comandos de `fetch`, `evaluate`, `compare` y
-   ejecucion por escenarios declarativos.
-3. **Dockerizar:** crear imagen con solver, dependencias runtime y smoke tests.
-4. **Persistir ejecuciones:** agregar DB y modelo de artefactos/resultados.
-5. **Agregar backend y worker:** separar API de ejecucion pesada.
-6. **Agregar frontend:** construir interfaz operativa para configuracion,
+1. **Estabilizar el core:** validar `case_builder` con datos reales
+   (`case_builder` sigue sin validacion end-to-end; ver seccion de brechas).
+2. **Dockerizar:** crear imagen con solver, dependencias runtime y smoke tests.
+3. **Persistir ejecuciones:** agregar DB y modelo de artefactos/resultados.
+4. **Agregar backend y worker:** separar API de ejecucion pesada.
+5. **Agregar frontend:** construir interfaz operativa para configuracion,
    seguimiento y comparacion.
-7. **Forecast:** producir insumos futuros con supuestos explicitos de precios de
+6. **Forecast:** producir insumos futuros con supuestos explicitos de precios de
    oferta, disponibilidad y demanda.
 
 ---

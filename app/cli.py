@@ -5,14 +5,19 @@
     python -m app run 2024-04 --no-eval
 """
 
-from datetime import date, datetime
-from pathlib import Path
+import calendar
+from datetime import date, datetime, timedelta
 
+import pandas as pd
 import typer
 
 from app.schemas import DispatchCase, DispatchLevel
 from app.dates import parse_dates_arg
+from app.data.download import ensure_data_for_date
+from app.pipeline.evaluate import evaluate_saved_run
 from app.pipeline.runner import run_many
+from app.pipeline.scenarios import load_bess_scenario
+from app.storage import get_storage
 
 app = typer.Typer(add_completion=False, help="Colombian dispatch model runner.")
 
@@ -23,13 +28,17 @@ def _main():
 
 
 def _available_dates(data_dir: str) -> list[date]:
-    root = Path(data_dir) / "condicion_inicial"
+    storage = get_storage(data_dir)
     out: list[date] = []
-    if root.exists():
-        for f in root.glob("*"):
-            if f.is_dir():
-                y, m, d = (int(x) for x in f.stem.split("-"))
-                out.append(date(y, m, d))
+    for name in storage.list_dir("condicion_inicial"):
+        parts = name.split("-")
+        if len(parts) != 3:
+            continue
+        try:
+            y, m, d = (int(x) for x in parts)
+        except ValueError:
+            continue
+        out.append(date(y, m, d))
     return out
 
 
@@ -54,6 +63,9 @@ def run(
     prices: bool = typer.Option(
         True, "--prices/--no-prices", help="fix-integers LP pricing re-solve"
     ),
+    bess_scenario: str = typer.Option(
+        None, "--bess-scenario", help="named scenario (scenarios/bess/<name>.yaml) or path to a scenario YAML"
+    ),
     skip_dates: str = typer.Option("", help="comma-separated YYYY-MM-DD to skip"),
     out: str = typer.Option("data/results", help="results directory"),
     data_dir: str = typer.Option("data", help="input data directory"),
@@ -63,9 +75,14 @@ def run(
     skip = _parse_skip(skip_dates)
     selected = [d for d in selected if d not in skip]
 
+    scenario = load_bess_scenario(bess_scenario) if bess_scenario else None
+
     levels = list(DispatchLevel) if "all" in type else [DispatchLevel(t) for t in type]
     cases = [
-        DispatchCase(dispatch_date=d, level=lvl, solver=solver, compute_prices=prices)
+        DispatchCase(
+            dispatch_date=d, level=lvl, solver=solver, compute_prices=prices,
+            bess_scenario=scenario,
+        )
         for d in selected
         for lvl in levels
     ]
@@ -83,3 +100,93 @@ def run(
     for r in failed:
         typer.echo(f"  FAIL {r.case.dispatch_date} [{r.case.level.value}]: {r.error}")
     raise typer.Exit(code=1 if failed else 0)
+
+
+def _enumerate_dates(token: str) -> list[date]:
+    """Enumerate every date in `token`, with no filtering against what's
+    already on disk (unlike parse_dates_arg) — fetch's whole point is to
+    reach dates that aren't available locally yet."""
+    token = token.strip()
+    if ":" in token:
+        lo, hi = (datetime.strptime(p.strip(), "%Y-%m-%d").date() for p in token.split(":", 1))
+        return [lo + timedelta(days=i) for i in range((hi - lo).days + 1)]
+    parts = token.split("-")
+    if len(parts) == 2:
+        year, month = int(parts[0]), int(parts[1])
+        days_in_month = calendar.monthrange(year, month)[1]
+        return [date(year, month, d) for d in range(1, days_in_month + 1)]
+    return [datetime.strptime(token, "%Y-%m-%d").date()]
+
+
+@app.command()
+def fetch(
+    dates: str = typer.Argument(..., help="YYYY-MM-DD | range a:b | YYYY-MM"),
+    data_dir: str = typer.Option("data", help="input data directory"),
+):
+    """Download raw XM inputs for the given date(s) without running the model."""
+    selected = _enumerate_dates(dates)
+    ok = 0
+    failed = 0
+    for d in selected:
+        typer.echo(f"==> fetching {d}")
+        try:
+            ensure_data_for_date(d, data_dir=data_dir)
+        except Exception as e:
+            typer.echo(f"  ! {d}: {e}")
+            failed += 1
+            continue
+        ok += 1
+    typer.echo(f"Done: fetched {ok}/{len(selected)} date(s), {failed} failed.")
+
+
+@app.command()
+def evaluate(
+    dates: str = typer.Argument(
+        None, help="YYYY-MM-DD | range a:b | YYYY-MM | omit = all available"
+    ),
+    type: list[str] = typer.Option(
+        ["preideal"], "--type", "-t", help="dispatch level, repeatable, or 'all'"
+    ),
+    out: str = typer.Option("data/results", help="results directory"),
+    data_dir: str = typer.Option("data", help="input data directory"),
+):
+    """Re-score saved runs against XM actuals without re-solving the model."""
+    avail = _available_dates(data_dir)
+    selected = parse_dates_arg(dates, avail)
+    levels = list(DispatchLevel) if "all" in type else [DispatchLevel(t) for t in type]
+
+    evaluated = 0
+    for d in selected:
+        for lvl in levels:
+            try:
+                evaluate_saved_run(d, lvl, out=out, data_dir=data_dir)
+            except FileNotFoundError as e:
+                typer.echo(f"  ! {d} [{lvl.value}]: {e}")
+                continue
+            typer.echo(f"==> evaluated {d} [{lvl.value}]")
+            evaluated += 1
+
+    if evaluated == 0:
+        typer.echo("No runs evaluated.")
+        raise typer.Exit(code=1)
+    typer.echo(f"Done: {evaluated} run(s) evaluated.")
+
+
+def _read_summary(out: str) -> pd.DataFrame:
+    storage = get_storage(out)
+    with storage.open("metrics-summary.csv") as f:
+        return pd.read_csv(f)
+
+
+@app.command()
+def compare(
+    out_a: str = typer.Argument(..., help="first run's results directory"),
+    out_b: str = typer.Argument(..., help="second run's results directory"),
+):
+    """Outer-join two runs' metrics-summary.csv on (date, type, scenario)."""
+    df_a = _read_summary(out_a)
+    df_b = _read_summary(out_b)
+    merged = df_a.merge(
+        df_b, on=["date", "type", "scenario"], how="outer", suffixes=("_a", "_b")
+    )
+    typer.echo(merged.to_string(index=False))

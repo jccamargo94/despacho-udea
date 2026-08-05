@@ -1,0 +1,10 @@
+mode: grid_asset
+penetration_level: "10pct"
+units:
+  - name: BESS1
+    mwh_nom: 100.0
+    hours_to_deplete: 4.0
+    initial_soc: 0.5
+    min_soc: 0.1
+    max_soc: 0.9
+    efficiency: 0.9
