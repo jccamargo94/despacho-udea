@@ -9,8 +9,8 @@ first, then falls back to the per-date download folder, so both work.
 from datetime import date
 from pathlib import Path
 
-# Per file kind: ordered list of candidate subdirectories (relative to data_dir).
-# "{date}" is substituted with the dispatch date. "" means data_dir itself.
+from app.storage import get_storage
+
 CANDIDATE_SUBDIRS = {
     "OFEI": ["oferta_inicial", "{date}"],
     "dCondIniP": ["condicion_inicial/{date}", "{date}"],
@@ -31,13 +31,15 @@ def resolve_input(kind: str, dispatch_date: date, data_dir: str = "data") -> str
 
     Raises FileNotFoundError listing every candidate that was tried.
     """
+    storage = get_storage(data_dir)
     filename = _filename(kind, dispatch_date)
     tried = []
     for sub in CANDIDATE_SUBDIRS[kind]:
         sub = sub.format(date=dispatch_date)
+        rel = f"{sub}/{filename}"
         p = Path(data_dir) / sub / filename
         tried.append(str(p))
-        if p.exists():
+        if storage.exists(rel):
             return str(p)
     raise FileNotFoundError(
         f"Could not find {kind} file for {dispatch_date}. Tried: {tried}"
