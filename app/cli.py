@@ -6,13 +6,13 @@
 """
 
 from datetime import date, datetime
-from pathlib import Path
 
 import typer
 
 from app.schemas import DispatchCase, DispatchLevel
 from app.dates import parse_dates_arg
 from app.pipeline.runner import run_many
+from app.storage import get_storage
 
 app = typer.Typer(add_completion=False, help="Colombian dispatch model runner.")
 
@@ -23,13 +23,17 @@ def _main():
 
 
 def _available_dates(data_dir: str) -> list[date]:
-    root = Path(data_dir) / "condicion_inicial"
+    storage = get_storage(data_dir)
     out: list[date] = []
-    if root.exists():
-        for f in root.glob("*"):
-            if f.is_dir():
-                y, m, d = (int(x) for x in f.stem.split("-"))
-                out.append(date(y, m, d))
+    for name in storage.list_dir("condicion_inicial"):
+        parts = name.split("-")
+        if len(parts) != 3:
+            continue
+        try:
+            y, m, d = (int(x) for x in parts)
+        except ValueError:
+            continue
+        out.append(date(y, m, d))
     return out
 
 

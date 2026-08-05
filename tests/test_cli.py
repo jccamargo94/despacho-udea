@@ -41,3 +41,13 @@ def test_no_dates_selected(monkeypatch):
     result = runner.invoke(cli.app, ["run", "2024-05-01:2024-05-02"])
     assert result.exit_code == 1
     assert "No dates selected" in result.output
+
+
+def test_available_dates_reads_condicion_inicial_dirs(tmp_path):
+    root = tmp_path / "condicion_inicial"
+    root.mkdir()
+    (root / "2024-04-18").mkdir()
+    (root / "2024-04-19").mkdir()
+    (root / "notes.txt").write_text("not a date dir")
+    dates = cli._available_dates(str(tmp_path))
+    assert sorted(dates) == [date(2024, 4, 18), date(2024, 4, 19)]
