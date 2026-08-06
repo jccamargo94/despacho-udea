@@ -53,9 +53,10 @@ def process_once(
         result = run_case(case, evaluate=True, out=out_dir, data_dir=data_dir)
 
     log_path = f"{out_dir}/run.log"
-    with get_storage(".").open(log_path, "w") as f:
-        f.write(log_buffer.getvalue())
-    run.log_path = log_path
+    with contextlib.suppress(OSError):
+        with get_storage(".").open(log_path, "w") as f:
+            f.write(log_buffer.getvalue())
+        run.log_path = log_path
 
     if result.ok:
         queries.finish_run_ok(session, run, result, out_dir=out_dir)
