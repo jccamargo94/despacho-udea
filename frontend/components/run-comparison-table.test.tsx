@@ -15,6 +15,7 @@ function makeRun(overrides: Partial<RunDetail>): RunDetail {
     finished_at: null,
     error: null,
     metrics: null,
+    artifacts: { dispatch: false, prices: false, bess: false },
     ...overrides,
   };
 }

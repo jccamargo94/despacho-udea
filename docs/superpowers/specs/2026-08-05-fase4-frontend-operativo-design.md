@@ -249,19 +249,60 @@ que se cierra aqui en vez de seguir difiriendola):
   YAGNI hasta que un usuario real se queje de un mensaje de error feo; no
   bloquea la funcionalidad, el 422 sigue siendo visible y accionable.
 
-### fase4c — Visualizacion de despacho + Explorador de artefactos/logs (frontend puro)
+### fase4c — Visualizacion de despacho + Explorador de artefactos/logs
 
-- Visualizacion de despacho por recurso/tecnologia: grafico Recharts de
-  series por periodo horario (eje = indice de hora del dia, no
-  timestamp), leido de `GET /runs/{id}/dispatch`.
+Decisiones cerradas via `/advisor` (usuario no disponible para esta
+sub-fase) verificando el contrato real del backend campo-por-campo, no
+asumiendolo desde el spec original:
+
+- **"por recurso/tecnologia" se reduce a "por generador".**
+  `extract_dispatch` (`app/pipeline/results.py:24-28`) solo produce
+  columnas `generador, datetime, dispatch` — no existe ningun campo de
+  tecnologia/tipo de recurso en el pipeline de resultados. No hay nada
+  que agrupar por tecnologia; el grafico es por `generador` tal cual.
+- **Descarga de artefactos NO puede ser un `<a href=...>`.**
+  `GET /runs/{id}/download/{artifact}` (`services/api/main.py:197-206`)
+  exige `Authorization: Bearer <jwt>` via `Depends(get_current_user_id)`.
+  Fase4a guardo la sesion de Supabase solo en `localStorage` (sin
+  cookies, sin middleware) — un `<a>` de navegador no manda ese header y
+  el request cae en 401. El boton de descarga debe hacer `fetch`
+  autenticado -> `res.blob()` -> `URL.createObjectURL(blob)` -> click
+  sintetico en un `<a>` temporal -> `URL.revokeObjectURL`. Esto es un
+  Global Constraint del plan, no una decision de implementacion libre.
+- **Gap de backend real (contradice el borrador original): `GET
+  /runs/{id}` no expone que artefactos existen.** `_run_summary`/
+  `get_run_detail` (`services/api/main.py:79-149`) nunca serializan
+  `dispatch_path`/`price_path`/`bess_path` — el explorador de artefactos
+  no puede saber que botones de descarga mostrar sin adivinar (probing
+  con 404s) o sin un campo nuevo. Se cierra en esta fase con un cambio
+  chico: agregar `"artifacts": {"dispatch": bool, "prices": bool, "bess":
+  bool}` (presencia de cada `*_path`, no el path mismo) a la respuesta de
+  `GET /runs/{id}`. Unico cambio de backend de fase4c.
+- **El endpoint de logs no es JSON.** `GET /runs/{id}/log`
+  (`services/api/main.py:153-162`) devuelve `PlainTextResponse` (texto
+  plano) y 404 cuando `run.log_path is None`. El wrapper `apiFetch`
+  existente (fase4a) parsea JSON — necesita una variante que lea texto
+  plano. El 404 es un estado esperado (corridas `pending`/`running` no
+  tienen log todavia), no un error: el visor debe mostrar "sin logs
+  todavia", no un mensaje de fallo.
+- **Cardinalidad del grafico de despacho.** El fixture sintetico
+  (`tests/fixtures/xm_smoke/`) solo tiene 2 generadores — no
+  representativo de datos reales de XM (potencialmente decenas de
+  plantas a escala nacional, y `data/` esta gitignored asi que no hay
+  como verificar el numero real). Un grafico Recharts con una linea por
+  generador no escala. Diseno: top-N generadores por `dispatch` total
+  acumulado (energia despachada) como series individuales + un bucket
+  "Otros" agregando el resto. Eje X = indice de hora del dia (no
+  timestamp), igual que el borrador original. Invocar la skill de
+  dataviz al escribir esta tarea del plan.
+- Visualizacion de despacho: grafico Recharts leido de
+  `GET /runs/{id}/dispatch` (via el endpoint generico
+  `GET /runs/{run_id}/{artifact}` ya existente desde antes de Fase 4).
 - Explorador de artefactos: lista de artefactos disponibles por run
-  (dispatch/prices/bess), boton de descarga via
-  `GET /runs/{id}/download/{artifact}`.
-- Explorador de logs: texto de `GET /runs/{id}/log` (fase4a) en un visor
-  simple (`<pre>` con scroll), mas `run.error` cuando `status ===
-  "failed"`.
-- Sin cambios de backend — todo lo que necesita ya quedo cerrado en
-  fase4a.
+  (dispatch/prices/bess) segun el nuevo campo `artifacts`, boton de
+  descarga por artefacto via el patron fetch+blob descrito arriba.
+- Explorador de logs: texto de `GET /runs/{id}/log` en un visor simple
+  (`<pre>` con scroll), mas `run.error` cuando `status === "failed"`.
 
 ## Testing
 

@@ -82,3 +82,39 @@ def test_list_runs_includes_case_fields(api_client):
     row = resp.json()[0]
     assert row["dispatch_date"] == "2024-04-19"
     assert row["level"] == "ideal"
+
+
+def test_get_run_artifacts_all_false_before_worker_runs(api_client):
+    resp = api_client.post("/runs", json={"dispatch_date": "2024-04-18", "level": "preideal"})
+    run_id = resp.json()["run_id"]
+
+    resp = api_client.get(f"/runs/{run_id}")
+    assert resp.status_code == 200
+    assert resp.json()["artifacts"] == {"dispatch": False, "prices": False, "bess": False}
+
+
+def test_get_run_artifacts_reflects_available_paths(api_client, tmp_path):
+    from datetime import date
+
+    from app.db import queries
+    from app.schemas import DispatchCase, DispatchLevel, RunResult
+
+    resp = api_client.post("/runs", json={"dispatch_date": "2024-04-18", "level": "preideal"})
+    run_id = resp.json()["run_id"]
+
+    out_dir = tmp_path / "results" / run_id
+    out_dir.mkdir(parents=True)
+
+    session = api_client.SessionLocal()
+    run = queries.get_run(session, run_id)
+    result = RunResult(
+        case=DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal),
+        ok=True,
+        dispatch_path=str(out_dir / "dispatch.csv"),
+        price_path=str(out_dir / "price.csv"),
+    )
+    queries.finish_run_ok(session, run, result, out_dir=str(out_dir))
+    session.close()
+
+    resp = api_client.get(f"/runs/{run_id}")
+    assert resp.json()["artifacts"] == {"dispatch": True, "prices": True, "bess": False}
