@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { CreateRunRequest, RunDetail, RunSummary, Scenario } from "./types";
+import type { CreateRunRequest, CreateScenarioRequest, RunDetail, RunSummary, Scenario } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -38,4 +38,8 @@ export function createRun(body: CreateRunRequest): Promise<{ run_id: string; sta
 
 export function listScenarios(): Promise<Scenario[]> {
   return request<Scenario[]>("/scenarios");
+}
+
+export function createScenario(body: CreateScenarioRequest): Promise<{ id: string }> {
+  return request("/scenarios", { method: "POST", body: JSON.stringify(body) });
 }

@@ -30,12 +30,32 @@ export interface RunDetail extends RunSummary {
   metrics: RunMetrics | null;
 }
 
+export type BessMode = "arbitrage" | "grid_asset" | "generator";
+
+export interface BessUnit {
+  name: string;
+  mwh_nom: number;
+  hours_to_deplete: number;
+  initial_soc: number;
+  min_soc: number;
+  max_soc: number;
+  efficiency: number;
+  charge_bid?: number | null;
+  discharge_bid?: number | null;
+}
+
 export interface Scenario {
   id: string;
-  mode: "arbitrage" | "grid_asset" | "generator";
+  mode: BessMode;
   penetration_level: string;
-  units: unknown[];
+  units: BessUnit[];
   created_at: string;
+}
+
+export interface CreateScenarioRequest {
+  mode: "arbitrage" | "grid_asset";
+  penetration_level: string;
+  units: BessUnit[];
 }
 
 export interface CreateRunRequest {
