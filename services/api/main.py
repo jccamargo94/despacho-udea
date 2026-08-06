@@ -4,7 +4,7 @@ from datetime import date
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from app.db import queries
@@ -148,6 +148,18 @@ def get_run_detail(
         else None
     )
     return out
+
+
+@app.get("/runs/{run_id}/log")
+def get_run_log(
+    run_id: str, user_id: str = Depends(get_current_user_id), session=Depends(get_session)
+):
+    run = _get_owned_run(session, run_id, user_id)
+    if run.log_path is None or not get_storage(".").exists(run.log_path):
+        raise HTTPException(status_code=404, detail="run has no log yet")
+    with get_storage(".").open(run.log_path) as f:
+        content = f.read()
+    return PlainTextResponse(content)
 
 
 _ARTIFACT_PATHS = {
