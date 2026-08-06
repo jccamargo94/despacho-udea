@@ -1,11 +1,14 @@
 from datetime import date
 
+import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.db import queries
 from app.db.session import get_engine, get_sessionmaker
 from app.schemas import BessScenario, DispatchLevel
+from app.storage import get_storage
 from services.api.auth import get_current_user_id
 
 app = FastAPI(title="despacho-udea API")
@@ -108,3 +111,48 @@ def get_run_detail(
         else None
     )
     return out
+
+
+_ARTIFACT_PATHS = {
+    "dispatch": "dispatch_path",
+    "prices": "price_path",
+    "bess": "bess_path",
+}
+
+
+def _artifact_path(run, artifact: str) -> str:
+    if artifact not in _ARTIFACT_PATHS:
+        raise HTTPException(status_code=404, detail="unknown artifact")
+    path = getattr(run, _ARTIFACT_PATHS[artifact])
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"run has no {artifact} artifact yet")
+    return path
+
+
+@app.get("/runs/{run_id}/{artifact}")
+def get_run_artifact(
+    run_id: str,
+    artifact: str,
+    user_id: str = Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    run = _get_owned_run(session, run_id, user_id)
+    path = _artifact_path(run, artifact)
+    storage = get_storage(".")
+    if not storage.exists(path):
+        raise HTTPException(status_code=404, detail="artifact file missing on disk")
+    with storage.open(path) as f:
+        df = pd.read_csv(f)
+    return df.to_dict(orient="records")
+
+
+@app.get("/runs/{run_id}/download/{artifact}")
+def download_run_artifact(
+    run_id: str,
+    artifact: str,
+    user_id: str = Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    run = _get_owned_run(session, run_id, user_id)
+    path = _artifact_path(run, artifact)
+    return FileResponse(path)
