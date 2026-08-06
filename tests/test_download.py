@@ -5,26 +5,30 @@ from app.storage import LocalStorage
 
 
 class _FakeResponse:
-    def __init__(self, payload):
-        self._payload = payload
-        self.content = payload if isinstance(payload, bytes) else b""
-
-    def json(self):
-        return self._payload
+    def __init__(self, content: bytes):
+        self.content = content
 
 
 def test_save_file_writes_via_storage(monkeypatch, tmp_path):
-    calls = iter(
-        [
-            _FakeResponse({"ficheros": [{"nombre": "OFEI0418.txt"}]}),
-            _FakeResponse({"url": "https://example.invalid/OFEI0418.txt"}),
-            _FakeResponse(b"file-contents"),
-        ]
-    )
-    monkeypatch.setattr("app.data.download.requests.get", lambda *a, **k: next(calls))
+    captured = {}
+
+    def _fake_get(url, params=None, **kwargs):
+        captured["url"] = url
+        captured["params"] = params
+        return _FakeResponse("file-contents-áéí".encode("utf-8"))
+
+    monkeypatch.setattr("app.data.download.requests.get", _fake_get)
     storage = LocalStorage(str(tmp_path))
     save_file(file_type="OFEI", file_date=date(2024, 4, 18), storage=storage)
-    assert (tmp_path / "2024-04-18" / "OFEI0418.txt").read_text() == "file-contents"
+
+    assert captured["url"] == (
+        "https://api-portalxm.xm.com.co/administracion-archivos/ficheros/descarga-archivo"
+    )
+    assert captured["params"] == {
+        "ruta": "M:/InformacionAgentes/Usuarios/Publico/OFERTAS/INICIAL/2024-04/OFEI0418.txt",
+        "nombreBlobContainer": "storageportalxm",
+    }
+    assert (tmp_path / "2024-04-18" / "OFEI0418.txt").read_text() == "file-contents-áéí"
 
 
 def test_ensure_data_for_date_skips_when_folder_exists(monkeypatch, tmp_path):

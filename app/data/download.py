@@ -24,9 +24,8 @@ PARAMS = {
     },
 }
 
-XM_DOWNLOAD_URL = (
-    "https://app-portalxmcore01.azurewebsites.net/administracion-archivos/ficheros/descarga-archivo"
-)
+XM_DOWNLOAD_URL = "https://api-portalxm.xm.com.co/administracion-archivos/ficheros/descarga-archivo"
+XM_BLOB_CONTAINER = "storageportalxm"
 
 
 def save_file(file_type: str, file_date: date, storage: Storage) -> None:
@@ -35,37 +34,16 @@ def save_file(file_type: str, file_date: date, storage: Storage) -> None:
     complement = "_NAL" if file_type in {"PrId", "iMAR"} else ""
     filename_ = f"{file_type}{file_date.month:0>2}{file_date.day:0>2}{complement}"
 
-    container_name: str = ("storageportalxm",)
-    ordenarPor: str = ("nombre",)
-    orden: str = ("DESC",)
-    pagina: int = (1,)
-    resultadosPorPagina: int = (10,)
+    print(f"...Downloading file {filename_}.txt")
     response = requests.get(
-        url="https://app-portalxmcore01.azurewebsites.net/administracion-archivos/ficheros",
-        params={
-            "nombre": f"{filename_}.txt",
-            "ruta": f"/{path}",
-            "contenedor": container_name,
-            "ordenarPor": ordenarPor,
-            "orden": orden,
-            "pagina": pagina,
-            "resultadosPorPagina": resultadosPorPagina,
-        },
-    )
-    filename = response.json()["ficheros"][0]["nombre"]
-    # Fetch url to download
-    print(f"...DOwnloading file {filename}")
-    r = requests.get(
         XM_DOWNLOAD_URL,
         params={
-            "ruta": f"{path}/{filename}",
-            "fileName": filename,
+            "ruta": f"{path}/{filename_}.txt",
+            "nombreBlobContainer": XM_BLOB_CONTAINER,
         },
     )
-    url = r.json()["url"]
-    file_byte = requests.get(url).content
     with storage.open(f"{file_date}/{filename_}.txt", "w") as file:
-        file.write(file_byte.decode("latin-1"))
+        file.write(response.content.decode("utf-8"))
 
 
 def ensure_data_for_date(dispatch_date: date, data_dir: str = "data") -> Path:
