@@ -1,0 +1,53 @@
+# Local full-stack dev: api + worker + frontend, wired to your real .env /
+# frontend/.env.local (DATABASE_URL points at Supabase Postgres — there is no
+# local db service). Source is bind-mounted for live reload; images still
+# need a rebuild if pyproject.toml/uv.lock or frontend/package.json change.
+#
+# Run from repo root:
+#   docker compose --project-directory . --env-file .env -f docker/docker-compose.dev.yaml up --build
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    command: ["uv", "run", "--no-sync", "uvicorn", "services.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./services/api:/app/services/api
+      - ./data:/app/data
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./app:/app/app
+      - ./services/worker:/app/services/worker
+      - ./data:/app/data
+    restart: unless-stopped
+    # No --reload equivalent for the polling worker: after editing code,
+    # `docker compose restart worker` to pick it up.
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev"
+    env_file:
+      - ./frontend/.env.local
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
