@@ -12,6 +12,7 @@ function Nav() {
       <nav>
         <Link href="/runs">Ejecuciones</Link>
         <Link href="/scenarios">Escenarios</Link>
+        <Link href="/compare">Comparar</Link>
         <button onClick={() => signOut()}>Salir</button>
       </nav>
     </header>
