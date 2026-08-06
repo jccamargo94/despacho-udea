@@ -45,3 +45,10 @@ def test_get_storage_returns_local_for_plain_path(tmp_path):
 def test_get_storage_raises_not_implemented_for_gcs():
     with pytest.raises(NotImplementedError):
         get_storage("gs://some-bucket/prefix")
+
+
+def test_open_read_with_explicit_encoding(tmp_path):
+    (tmp_path / "c.txt").write_text("café", encoding="utf-8")
+    storage = LocalStorage(str(tmp_path))
+    with storage.open("c.txt", "r", encoding="utf-8") as f:
+        assert f.read() == "café"
