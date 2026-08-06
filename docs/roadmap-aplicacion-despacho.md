@@ -25,7 +25,7 @@ El proyecto ya tiene una primera extraccion hacia una aplicacion Python:
 - `app/data/`: carga, descarga y parsing de insumos XM.
 - `app/cli.py`: CLI Typer ejecutable con `python -m app run`.
 - `tests/`: pruebas unitarias para piezas puras y orquestacion basica.
-- `*.ipynb`: notebooks exploratorios para descarga, comparaciones y graficas.
+- `notebooks/*.ipynb`: notebooks exploratorios para descarga, comparaciones y graficas.
 
 La arquitectura actual ya separa parcialmente tres capas:
 

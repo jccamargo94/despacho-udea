@@ -57,6 +57,7 @@ class Run(Base):
     dispatch_path: Mapped[str | None] = mapped_column(String, nullable=True)
     price_path: Mapped[str | None] = mapped_column(String, nullable=True)
     bess_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    log_path: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class MetricSet(Base):

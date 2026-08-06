@@ -25,6 +25,11 @@ def get_scenario(session: Session, scenario_id: str) -> Scenario | None:
     return session.get(Scenario, scenario_id)
 
 
+def list_scenarios(session: Session) -> list[Scenario]:
+    stmt = select(Scenario).order_by(Scenario.created_at.desc())
+    return list(session.scalars(stmt))
+
+
 def create_case_and_run(
     session: Session,
     *,

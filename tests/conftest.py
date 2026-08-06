@@ -1,7 +1,10 @@
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+os.environ.setdefault("FRONTEND_ORIGIN", "http://localhost:3000")
 
 import pytest
 from sqlalchemy import create_engine
