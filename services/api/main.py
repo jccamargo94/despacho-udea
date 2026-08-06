@@ -139,6 +139,10 @@ def get_run_detail(
             "wape": metric_set.wape,
             "smape": metric_set.smape,
             "r2": metric_set.r2,
+            "bess_charge_mwh": metric_set.bess_charge_mwh,
+            "bess_discharge_mwh": metric_set.bess_discharge_mwh,
+            "bess_avg_soc_mwh": metric_set.bess_avg_soc_mwh,
+            "bess_net_revenue": metric_set.bess_net_revenue,
         }
         if metric_set
         else None
