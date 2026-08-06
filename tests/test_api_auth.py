@@ -70,3 +70,19 @@ def test_decode_bearer_token_rejects_wrong_audience(rsa_keypair):
     with pytest.raises(HTTPException) as exc_info:
         decode_bearer_token(f"Bearer {token}", _FakeJWKClient(public_pem))
     assert exc_info.value.status_code == 401
+
+
+def test_decode_bearer_token_rejects_signature_from_wrong_key(rsa_keypair):
+    private_pem, _ = rsa_keypair
+    other_public_pem = (
+        rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        .public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
+    token = _token(private_pem)
+    with pytest.raises(HTTPException) as exc_info:
+        decode_bearer_token(f"Bearer {token}", _FakeJWKClient(other_public_pem))
+    assert exc_info.value.status_code == 401
