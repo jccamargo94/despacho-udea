@@ -51,6 +51,23 @@ def create_scenario(
     return {"id": row.id}
 
 
+@app.get("/scenarios")
+def list_scenarios_endpoint(
+    user_id: str = Depends(get_current_user_id), session=Depends(get_session)
+):
+    scenarios = queries.list_scenarios(session)
+    return [
+        {
+            "id": s.id,
+            "mode": s.mode,
+            "penetration_level": s.penetration_level,
+            "units": s.units,
+            "created_at": s.created_at,
+        }
+        for s in scenarios
+    ]
+
+
 class RunCreateRequest(BaseModel):
     dispatch_date: date
     level: DispatchLevel
