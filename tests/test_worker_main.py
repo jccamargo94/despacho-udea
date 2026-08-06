@@ -1,11 +1,11 @@
 from datetime import date
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.db import queries
-from app.db.models import Base
+from app.db.models import Base, Run
 from app.schemas import DispatchCase, DispatchLevel, RunResult
 from services.worker.main import process_once
 
@@ -22,6 +22,7 @@ def _session():
 def test_process_once_returns_false_when_no_pending_runs():
     session = _session()
     assert process_once(session, data_dir=DD, results_root="data/results") is False
+    assert session.scalars(select(Run)).first() is None
 
 
 def test_process_once_solves_pending_run_end_to_end(tmp_path, monkeypatch):
@@ -49,6 +50,7 @@ def test_process_once_solves_pending_run_end_to_end(tmp_path, monkeypatch):
     assert updated.status == "done", updated.error
     assert updated.price_path is not None
     assert Path(updated.price_path).exists()
+    assert Path(updated.out_dir) == Path(results_root) / run.id
 
     # xm_smoke fixture has no preideal_price actuals -> evaluate is skipped,
     # matching tests/test_xm_smoke_run.py's own assertion
