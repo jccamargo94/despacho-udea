@@ -26,8 +26,21 @@ export interface RunMetrics {
   bess_net_revenue: number | null;
 }
 
+export interface DispatchRow {
+  generador: string;
+  datetime: string;
+  dispatch: number;
+}
+
+export interface RunArtifacts {
+  dispatch: boolean;
+  prices: boolean;
+  bess: boolean;
+}
+
 export interface RunDetail extends RunSummary {
   metrics: RunMetrics | null;
+  artifacts: RunArtifacts;
 }
 
 export type BessMode = "arbitrage" | "grid_asset" | "generator";

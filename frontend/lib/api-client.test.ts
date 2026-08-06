@@ -5,7 +5,7 @@ vi.mock("./supabase", () => ({
 }));
 
 import { supabase } from "./supabase";
-import { createRun, createScenario, listRuns } from "./api-client";
+import { createRun, createScenario, downloadRunArtifact, getRunDispatch, getRunLog, listRuns } from "./api-client";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
@@ -92,5 +92,72 @@ describe("api-client", () => {
     });
 
     await expect(listRuns()).rejects.toThrow("404");
+  });
+
+  it("getRunDispatch fetches the dispatch artifact as JSON rows", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [{ generador: "TERMO1", datetime: "2024-04-18 00:00:00", dispatch: 300 }],
+    });
+
+    const rows = await getRunDispatch("run-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/runs/run-1/dispatch"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer tok-123" }),
+      })
+    );
+    expect(rows).toEqual([{ generador: "TERMO1", datetime: "2024-04-18 00:00:00", dispatch: 300 }]);
+  });
+
+  it("downloadRunArtifact fetches with auth header and returns a Blob", async () => {
+    const fakeBlob = new Blob(["csv,data"], { type: "text/csv" });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      blob: async () => fakeBlob,
+    });
+
+    const blob = await downloadRunArtifact("run-1", "dispatch");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/runs/run-1/download/dispatch"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer tok-123" }),
+      })
+    );
+    expect(blob).toBe(fakeBlob);
+  });
+
+  it("downloadRunArtifact throws when the response is not ok", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, statusText: "Not Found" });
+
+    await expect(downloadRunArtifact("run-1", "bess")).rejects.toThrow("404");
+  });
+
+  it("getRunLog returns the text body on success", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => "line 1\nline 2",
+    });
+
+    const log = await getRunLog("run-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/runs/run-1/log"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer tok-123" }),
+      })
+    );
+    expect(log).toBe("line 1\nline 2");
+  });
+
+  it("getRunLog returns null on 404 instead of throwing", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, statusText: "Not Found" });
+
+    const log = await getRunLog("run-1");
+
+    expect(log).toBeNull();
   });
 });

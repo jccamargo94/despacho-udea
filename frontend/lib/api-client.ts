@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { CreateRunRequest, CreateScenarioRequest, RunDetail, RunSummary, Scenario } from "./types";
+import type { CreateRunRequest, CreateScenarioRequest, DispatchRow, RunDetail, RunSummary, Scenario } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -42,4 +42,32 @@ export function listScenarios(): Promise<Scenario[]> {
 
 export function createScenario(body: CreateScenarioRequest): Promise<{ id: string }> {
   return request("/scenarios", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function getRunDispatch(id: string): Promise<DispatchRow[]> {
+  return request<DispatchRow[]>(`/runs/${id}/dispatch`);
+}
+
+export async function downloadRunArtifact(
+  id: string,
+  artifact: "dispatch" | "prices" | "bess"
+): Promise<Blob> {
+  const headers = await authHeader();
+  const resp = await fetch(`${API_BASE_URL}/runs/${id}/download/${artifact}`, { headers });
+  if (!resp.ok) {
+    throw new Error(`${resp.status} ${resp.statusText}`);
+  }
+  return resp.blob();
+}
+
+export async function getRunLog(id: string): Promise<string | null> {
+  const headers = await authHeader();
+  const resp = await fetch(`${API_BASE_URL}/runs/${id}/log`, { headers });
+  if (resp.status === 404) {
+    return null;
+  }
+  if (!resp.ok) {
+    throw new Error(`${resp.status} ${resp.statusText}`);
+  }
+  return resp.text();
 }
