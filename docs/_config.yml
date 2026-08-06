@@ -8,6 +8,7 @@ baseurl: "/despacho-udea"
 author: "Consultoría UDEA"
 
 # Build settings
+theme: jekyll-theme-primer
 markdown: kramdown
 
 # Kramdown configuration
