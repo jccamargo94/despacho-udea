@@ -1,7 +1,9 @@
+import os
 from datetime import date
 
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -12,6 +14,16 @@ from app.storage import get_storage
 from services.api.auth import get_current_user_id
 
 app = FastAPI(title="despacho-udea API")
+
+_frontend_origins = [
+    origin.strip() for origin in os.environ.get("FRONTEND_ORIGIN", "").split(",") if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_frontend_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _engine = None
 _session_local = None
