@@ -1,0 +1,14 @@
+{%- if site.social_media -%}
+  <ul class="social-media-list">
+    {%- for platform in site.social_media -%}
+      {%- assign social_site = site.minima.social_links | where: "platform", platform.name | first -%}
+      {%- if social_site -%}
+        <li><a rel="me" href="{{ platform.link }}" title="{{ platform.name | escape }}">
+          <svg class="svg-icon grey">
+            <use xlink:href="{{ '/assets/minima-social-icons.svg#' | append: social_site.icon | relative_url }}"></use>
+          </svg>
+        </a></li>
+      {%- endif -%}
+    {%- endfor -%}
+  </ul>
+{%- endif -%}

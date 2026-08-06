@@ -1,0 +1,29 @@
+# Jekyll configuration for despacho-udea GitHub Pages
+
+# Site settings
+title: despacho-udea
+description: "Modelo académico de despacho eléctrico colombiano"
+url: "https://jccamargo94.github.io"
+baseurl: "/despacho-udea"
+author: "Consultoría UDEA"
+
+# Build settings
+markdown: kramdown
+
+# Kramdown configuration
+kramdown:
+  auto_ids: true
+  input: GFM
+  hard_wrap: false
+  footnote_nr: 1
+  entity_output: as_char
+  toc_levels: 1..6
+  syntax_highlighter: rouge
+
+# Plugin configuration
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# GitHub Pages specific
+github: [metadata]
