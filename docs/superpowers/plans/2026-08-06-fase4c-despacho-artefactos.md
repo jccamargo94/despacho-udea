@@ -231,6 +231,8 @@ Add to `frontend/lib/api-client.test.ts`, inside the existing `describe("api-cli
   });
 ```
 
+Note: the "throws when the response is not ok" test for `downloadRunArtifact` and this "returns null on 404" test for `getRunLog` use the identical mock shape (`{ ok: false, status: 404, statusText: "Not Found" }`) but assert opposite outcomes. That is intentional, not a copy-paste error: a missing download IS an error (nothing to give the user), a missing log is a normal, expected state for a `pending`/`running` run. Don't make these consistent with each other.
+
 - [ ] **Step 4: Run tests to verify they fail**
 
 Run: `pnpm test api-client`
@@ -279,11 +281,13 @@ Expected: PASS (all api-client tests, old and new)
 
 - [ ] **Step 7: Install recharts**
 
+`recharts` was already installed while verifying Task 3's Recharts/jsdom rendering approach before this plan was finalized — check `frontend/package.json` first:
+
 ```bash
-pnpm add recharts
+grep recharts frontend/package.json
 ```
 
-Verify it landed in `frontend/package.json` under `"dependencies"`.
+If it's already listed under `"dependencies"` (as `"recharts": "^3.10.1"` or similar), skip this step — nothing to do. Otherwise run `pnpm add recharts` and verify it landed in `"dependencies"`.
 
 - [ ] **Step 8: Run the whole frontend test suite to check for regressions from the `RunDetail` type change**
 
@@ -302,6 +306,7 @@ git commit -m "feat(frontend): DispatchRow type, artifacts field, download/dispa
 ### Task 3: `DispatchChart` component (top-N generadores + "Otros")
 
 **Files:**
+- Modify: `frontend/vitest.setup.ts` (add a `ResizeObserver` stub — required, see Step 5)
 - Create: `frontend/lib/dispatch-chart-data.ts`
 - Create: `frontend/lib/dispatch-chart-data.test.ts`
 - Create: `frontend/components/dispatch-chart.tsx`
@@ -433,7 +438,40 @@ export function toHourlyDispatchSeries(rows: DispatchRow[]): {
 Run: `pnpm test dispatch-chart-data`
 Expected: PASS (3 tests)
 
-- [ ] **Step 5: Write the failing test for the chart component**
+- [ ] **Step 5: Add a `ResizeObserver` stub to the shared test setup**
+
+This change was already applied to `frontend/vitest.setup.ts` while verifying Task 3's Recharts/jsdom approach before this plan was finalized — check the file's current contents first. If it already matches the code block below, skip straight to Step 6. Otherwise apply it now.
+
+jsdom has no layout engine, so Recharts' `ResponsiveContainer` (which sizes itself via `ResizeObserver`) never measures a non-zero size and renders nothing — verified empirically before writing this task: without a stub, `container.innerHTML` after rendering a chart is just `<div class="recharts-responsive-container" ...><div style="width: 0px; ..."></div></div>`, no SVG. A no-op stub (`observe() {}`) is not enough either — `ResponsiveContainer` only re-renders once its `ResizeObserver` callback actually fires, so the stub must invoke the callback synchronously with a non-zero `contentRect`.
+
+Modify `frontend/vitest.setup.ts` — it currently contains only `import "@testing-library/jest-dom/vitest";`. Replace its full contents with:
+
+```ts
+import "@testing-library/jest-dom/vitest";
+
+// jsdom has no layout engine, so Recharts' ResponsiveContainer (which sizes
+// itself via ResizeObserver) never measures a non-zero size and renders
+// nothing. Stub it to synchronously report a fixed size on observe().
+class ResizeObserverStub {
+  private cb: ResizeObserverCallback;
+  constructor(cb: ResizeObserverCallback) {
+    this.cb = cb;
+  }
+  observe(target: Element) {
+    this.cb(
+      [{ target, contentRect: { width: 500, height: 320 } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver
+    );
+  }
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+```
+
+This is global (applies to every test file), but harmless — nothing else in the suite uses `ResizeObserver`, confirmed by running the full `pnpm test` suite with this change in place (36/36 pass, same count as before the stub).
+
+- [ ] **Step 6: Write the failing test for the chart component**
 
 Create `frontend/components/dispatch-chart.test.tsx`:
 
@@ -463,12 +501,12 @@ describe("DispatchChart", () => {
 });
 ```
 
-- [ ] **Step 6: Run test to verify it fails**
+- [ ] **Step 7: Run test to verify it fails**
 
 Run: `pnpm test dispatch-chart.test`
 Expected: FAIL — `./dispatch-chart` module doesn't exist.
 
-- [ ] **Step 7: Implement the component**
+- [ ] **Step 8: Implement the component**
 
 Create `frontend/components/dispatch-chart.tsx`:
 
@@ -521,15 +559,20 @@ export function DispatchChart({ rows }: { rows: DispatchRow[] }) {
 }
 ```
 
-- [ ] **Step 8: Run test to verify it passes**
+- [ ] **Step 9: Run test to verify it passes**
 
-Run: `pnpm test dispatch-chart`
-Expected: PASS. Note: `ResponsiveContainer` needs a non-zero DOM size to render its children in some environments — if the "renders a chart" test fails because the SVG never mounts (jsdom reports 0 width/height), that's a known Recharts+jsdom interaction; call `advisor()` for the correct fix (typically mocking `ResizeObserver` or asserting on the outer `.recharts-wrapper` div rather than requiring the inner `svg`) rather than guessing.
+Run: `pnpm test dispatch-chart.test` (NOT `pnpm test dispatch-chart` — that substring matches both `dispatch-chart-data.test.ts` and `dispatch-chart.test.tsx`, since Vitest's positional argument is a filename filter, not a test-name filter; `dispatch-chart.test` matches only the component's test file).
+Expected: PASS (2 tests).
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Run the whole frontend suite to confirm the `vitest.setup.ts` change caused no regressions**
+
+Run: `pnpm test`
+Expected: all tests pass (35 pre-existing + 4 new from this task = 39).
+
+- [ ] **Step 11: Commit**
 
 ```bash
-git add frontend/lib/dispatch-chart-data.ts frontend/lib/dispatch-chart-data.test.ts frontend/components/dispatch-chart.tsx frontend/components/dispatch-chart.test.tsx
+git add frontend/vitest.setup.ts frontend/lib/dispatch-chart-data.ts frontend/lib/dispatch-chart-data.test.ts frontend/components/dispatch-chart.tsx frontend/components/dispatch-chart.test.tsx
 git commit -m "feat(frontend): DispatchChart (top-6 generadores + Otros, stacked area by hour)"
 ```
 
@@ -870,6 +913,8 @@ Read `frontend/app/(app)/runs/[id]/page.tsx` in full before editing — it alrea
 
 - [ ] **Step 2: Add the dispatch chart, artifact downloads, and log viewer sections**
 
+Note: the dispatch query is gated with `enabled: Boolean(data?.artifacts.dispatch)`, so when there's no dispatch artifact `dispatchQuery.data` just stays `undefined` and `DispatchChart` receives `rows={[]}` — `DispatchChart` already renders its own "No hay datos de despacho todavia." for the empty-rows case (Task 3), so there's no need for a second `data.artifacts.dispatch ? ... : ...` branch in the page itself. Don't add one — it would just duplicate the same message from two places.
+
 Replace the full contents of `frontend/app/(app)/runs/[id]/page.tsx` with:
 
 ```tsx
@@ -918,11 +963,7 @@ export default function RunDetailPage() {
       )}
 
       <h2>Despacho por generador</h2>
-      {data.artifacts.dispatch ? (
-        <DispatchChart rows={dispatchQuery.data ?? []} />
-      ) : (
-        <p>No hay datos de despacho todavia.</p>
-      )}
+      <DispatchChart rows={dispatchQuery.data ?? []} />
 
       <h2>Artefactos</h2>
       <ArtifactDownloads runId={data.run_id} artifacts={data.artifacts} />
