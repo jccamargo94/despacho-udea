@@ -219,15 +219,35 @@ que se cierra aqui en vez de seguir difiriendola):
 - `Scenario.units` en `frontend/lib/types.ts` esta tipado `unknown[]`
   (placeholder de fase4a) — tipar correctamente como `BessUnit[]` con un
   tipo `BessUnit` espejo del backend (`app/schemas/bess.py`).
-- Los formularios nuevos (configurador BESS, comparador) usan los
-  componentes shadcn/ui ya instalados en fase4a
-  (`frontend/components/ui/*`: button, card, table, input, label, select,
-  badge) en vez de `<input>`/`<select>` crudos — fase4a los instalo pero
-  nunca los uso (Task 9 los trajo, Tasks 13/16 usaron HTML plano). No se
-  retrofitea fase4a, pero fase4b arranca usando los componentes reales.
+- Los formularios nuevos (configurador BESS, comparador) usan
+  `Button`/`Card`/`Input`/`Label`/`Table`/`Badge` de
+  `frontend/components/ui/*` (ya instalados en fase4a, Task 9, nunca
+  usados — Tasks 13/16 usaron HTML plano) en vez de sus equivalentes
+  crudos. No se retrofitea fase4a, pero fase4b arranca usando los
+  componentes reales. **El `Select` de shadcn se omite deliberadamente**:
+  envuelve `@base-ui/react/select`, un popover headless (Portal +
+  Trigger/Content/Item) que en tests exige simular clic+apertura+seleccion
+  de opcion en vez de un simple `fireEvent.change` — riesgo real de tests
+  fragiles para un implementador que solo transcribe el brief. Los
+  selectores (`mode` en el configurador BESS, cualquier otro `<select>`
+  nuevo) usan `<select>` nativo, el mismo patron ya probado y verde en
+  `frontend/components/create-run-form.tsx` (fase4a).
 - `shadcn` (el CLI) esta en `dependencies` de `frontend/package.json` en
   vez de `devDependencies` — moverlo como parte del primer commit de esta
   fase (cambio de una linea).
+- `frontend/lib/api-client.ts` no tiene `createScenario` — solo
+  `listRuns`/`getRun`/`createRun`/`listScenarios`. El configurador BESS lo
+  necesita; se agrega en la misma tarea que tipa `BessUnit`/`Scenario`.
+  Verificado el shape real: `POST /scenarios` (`services/api/main.py`)
+  devuelve `{"id": row.id}` — **`id`, no `scenario_id`** (no asumir el
+  mismo shape que `POST /runs`, que si devuelve `run_id`).
+- `request()` en `api-client.ts` lanza el body de una respuesta no-ok como
+  texto crudo (`` `${status} ${statusText}: ${body}` ``). Un 422 de FastAPI
+  devuelve JSON (`{"detail": [...]}`), asi que el mensaje de error que ve
+  el usuario en el formulario BESS sera ese JSON crudo, no un mensaje
+  legible. **Decision: aceptable para esta fase** (no parsear `detail`) —
+  YAGNI hasta que un usuario real se queje de un mensaje de error feo; no
+  bloquea la funcionalidad, el 422 sigue siendo visible y accionable.
 
 ### fase4c — Visualizacion de despacho + Explorador de artefactos/logs (frontend puro)
 
