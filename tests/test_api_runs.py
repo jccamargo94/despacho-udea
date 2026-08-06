@@ -61,3 +61,24 @@ def test_list_runs_returns_created_runs(api_client):
     resp = api_client.get("/runs")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
+
+
+def test_get_run_includes_case_fields(api_client):
+    create_resp = api_client.post(
+        "/runs", json={"dispatch_date": "2024-04-18", "level": "preideal"}
+    )
+    run_id = create_resp.json()["run_id"]
+
+    resp = api_client.get(f"/runs/{run_id}")
+    body = resp.json()
+    assert body["dispatch_date"] == "2024-04-18"
+    assert body["level"] == "preideal"
+    assert body["scenario_id"] is None
+
+
+def test_list_runs_includes_case_fields(api_client):
+    api_client.post("/runs", json={"dispatch_date": "2024-04-19", "level": "ideal"})
+    resp = api_client.get("/runs")
+    row = resp.json()[0]
+    assert row["dispatch_date"] == "2024-04-19"
+    assert row["level"] == "ideal"

@@ -59,10 +59,13 @@ class RunCreateRequest(BaseModel):
     scenario_id: str | None = None
 
 
-def _run_summary(run) -> dict:
+def _run_summary(run, case) -> dict:
     return {
         "run_id": run.id,
         "status": run.status,
+        "dispatch_date": case.dispatch_date,
+        "level": case.level,
+        "scenario_id": case.scenario_id,
         "created_at": run.created_at,
         "started_at": run.started_at,
         "finished_at": run.finished_at,
@@ -100,7 +103,7 @@ def create_run(
 @app.get("/runs")
 def list_runs(user_id: str = Depends(get_current_user_id), session=Depends(get_session)):
     runs = queries.list_runs_for_user(session, user_id)
-    return [_run_summary(r) for r in runs]
+    return [_run_summary(r, queries.get_case(session, r.case_id)) for r in runs]
 
 
 @app.get("/runs/{run_id}")
@@ -108,8 +111,9 @@ def get_run_detail(
     run_id: str, user_id: str = Depends(get_current_user_id), session=Depends(get_session)
 ):
     run = _get_owned_run(session, run_id, user_id)
+    case = queries.get_case(session, run.case_id)
     metric_set = queries.get_metric_set(session, run.id)
-    out = _run_summary(run)
+    out = _run_summary(run, case)
     out["metrics"] = (
         {
             "rmse": metric_set.rmse,
