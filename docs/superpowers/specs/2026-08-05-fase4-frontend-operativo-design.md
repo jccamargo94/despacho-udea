@@ -154,15 +154,100 @@ Alembic nueva):
 
 ### fase4b — Configurador de escenario BESS + Comparador (frontend puro)
 
-- Configurador BESS: formulario para crear `BessScenario` (mode,
-  penetration_level, `units: BessUnit[]`) contra `POST /scenarios`; lista
-  de escenarios existentes via el nuevo `GET /scenarios` (fase4a);
-  selector de escenario reutilizado en el formulario de crear run.
-- Comparador de precios y metricas: tabla/grafico (Recharts) que compara
-  metricas (`rmse/mae/bias/wape/smape/r2` + los 4 `bess_*`) entre varias
-  corridas seleccionadas por el usuario.
-- Sin cambios de backend — todo lo que necesita ya quedo cerrado en
-  fase4a.
+Decisiones cerradas 2026-08-06 (sin brainstorming interactivo — usuario no
+disponible, decisiones tomadas via `/advisor` con Opus y verificadas contra
+el codigo real, mismo criterio que el resto de este spec). Sin cambios de
+backend — todo lo que necesita ya quedo cerrado en fase4a.
+
+**Configurador de escenario BESS** (`/scenarios`, ruta nueva bajo `(app)`):
+- Lista de escenarios existentes via `GET /scenarios` (fase4a) + formulario
+  para crear uno nuevo contra `POST /scenarios`.
+- Formulario: `mode` (selector), `penetration_level` (texto), `units:
+  BessUnit[]` como lista dinamica de filas (agregar/quitar), cada fila con
+  `name/mwh_nom/hours_to_deplete/initial_soc/min_soc/max_soc/efficiency` +
+  `charge_bid`/`discharge_bid` opcionales.
+- **`mode` solo ofrece `arbitrage` y `grid_asset` — `generator` se omite
+  del selector.** Verificado contra el codigo real
+  (`app/model/model.py:310`): `BessMode.generator` sigue sin formulacion
+  Pyomo, `raise NotImplementedError("BESS mode 'generator' has no Pyomo
+  formulation yet")` antes de tocar el solver. Ofrecerlo en el formulario
+  produciria una corrida que garantizadamente falla — no vale la pena
+  construir UI para un modo que el backend no soporta. Si `generator` se
+  implementa en el backend en el futuro, se agrega al selector entonces.
+- Validacion: **el servidor es la unica autoridad** (`BessScenario`'s
+  `field_validator` en `app/schemas/bess.py` ya exige `charge_bid` en modo
+  `arbitrage` y `discharge_bid` en `arbitrage`/`generator`, devuelve 422 si
+  falta). El frontend NO reimplementa esa logica de validacion — solo
+  refleja del lado cliente cual de los dos campos de bid mostrar/ocultar
+  segun el `mode` seleccionado (UX, no validacion), y muestra el mensaje
+  de error del 422 si el servidor rechaza el submit.
+- El selector de escenario en el formulario de crear run (`/runs`, fase4a)
+  se actualiza para usar el mismo tipo `Scenario`/`BessUnit` ya definido
+  aqui (ver "Carry-overs" abajo).
+
+**Comparador de precios y metricas** (`/compare`, ruta nueva bajo `(app)`,
+separada de `/runs` — no se modifica `RunsTable`):
+- Selector multi-run: dropdown/checklist de corridas con `status ===
+  "done"` (obtenidas de `GET /runs`, ya cacheada por TanStack Query bajo
+  la key `["runs"]`).
+- **`GET /runs` (`_run_summary`, `services/api/main.py`) no incluye
+  metricas** — solo `GET /runs/{id}` (`get_run_detail`) las tiene. El
+  comparador debe pedir el detalle de cada corrida seleccionada
+  individualmente (`useQueries` de TanStack Query sobre los ids
+  seleccionados), no asumir que las metricas ya estan disponibles desde
+  la lista.
+- **`status === "done"` no implica que existan metricas.** Confirmado
+  contra `tests/test_worker_main.py`: una corrida exitosa contra el
+  fixture `xm_smoke` (sin datos reales XM para esa fecha) termina en
+  `status: "done"` con `get_metric_set(...) is None` — `evaluate` se
+  salta si no hay actuals que comparar. El comparador debe manejar
+  `metrics: null` por corrida explicitamente (mostrar "sin metricas" en
+  esa columna), no asumir que toda corrida `done` tiene numeros.
+- **Presentacion: tabla, no un solo grafico de barras.** Los 10 campos de
+  metricas tienen escalas y unidades incompatibles entre si (`rmse/mae/bias`
+  en COP/MWh, `wape/smape` en porcentaje, `r2` en 0-1, `bess_charge_mwh`/
+  `bess_discharge_mwh`/`bess_avg_soc_mwh` en MWh, `bess_net_revenue` en
+  COP) — un grafico de barras agrupado mezclando las diez seria ilegible.
+  La tabla (metricas como filas, corridas seleccionadas como columnas) es
+  el comparador primario. Si se agregan graficos, son "small multiples"
+  (un grafico chico por metrica, no uno solo con las diez) — usar la skill
+  `dataviz` al escribir ese codigo si se decide incluirlos en el plan.
+
+**Carry-overs de fase4a a resolver como parte de esta fase** (deuda tecnica
+que el configurador BESS es el primer consumidor real de estos tipos, asi
+que se cierra aqui en vez de seguir difiriendola):
+- `Scenario.units` en `frontend/lib/types.ts` esta tipado `unknown[]`
+  (placeholder de fase4a) — tipar correctamente como `BessUnit[]` con un
+  tipo `BessUnit` espejo del backend (`app/schemas/bess.py`).
+- Los formularios nuevos (configurador BESS, comparador) usan
+  `Button`/`Card`/`Input`/`Label`/`Table`/`Badge` de
+  `frontend/components/ui/*` (ya instalados en fase4a, Task 9, nunca
+  usados — Tasks 13/16 usaron HTML plano) en vez de sus equivalentes
+  crudos. No se retrofitea fase4a, pero fase4b arranca usando los
+  componentes reales. **El `Select` de shadcn se omite deliberadamente**:
+  envuelve `@base-ui/react/select`, un popover headless (Portal +
+  Trigger/Content/Item) que en tests exige simular clic+apertura+seleccion
+  de opcion en vez de un simple `fireEvent.change` — riesgo real de tests
+  fragiles para un implementador que solo transcribe el brief. Los
+  selectores (`mode` en el configurador BESS, cualquier otro `<select>`
+  nuevo) usan `<select>` nativo, el mismo patron ya probado y verde en
+  `frontend/components/create-run-form.tsx` (fase4a).
+- `shadcn` (el CLI) esta en `dependencies` de `frontend/package.json` en
+  vez de `devDependencies` — moverlo como parte del primer commit de esta
+  fase (cambio de una linea).
+- `frontend/lib/api-client.ts` no tiene `createScenario` — solo
+  `listRuns`/`getRun`/`createRun`/`listScenarios`. El configurador BESS lo
+  necesita; se agrega en la misma tarea que tipa `BessUnit`/`Scenario`.
+  Verificado el shape real: `POST /scenarios` (`services/api/main.py`)
+  devuelve `{"id": row.id}` — **`id`, no `scenario_id`** (no asumir el
+  mismo shape que `POST /runs`, que si devuelve `run_id`).
+- `request()` en `api-client.ts` lanza el body de una respuesta no-ok como
+  texto crudo (`` `${status} ${statusText}: ${body}` ``). Un 422 de FastAPI
+  devuelve JSON (`{"detail": [...]}`), asi que el mensaje de error que ve
+  el usuario en el formulario BESS sera ese JSON crudo, no un mensaje
+  legible. **Decision: aceptable para esta fase** (no parsear `detail`) —
+  YAGNI hasta que un usuario real se queje de un mensaje de error feo; no
+  bloquea la funcionalidad, el 422 sigue siendo visible y accionable.
 
 ### fase4c — Visualizacion de despacho + Explorador de artefactos/logs (frontend puro)
 

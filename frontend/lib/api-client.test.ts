@@ -5,7 +5,7 @@ vi.mock("./supabase", () => ({
 }));
 
 import { supabase } from "./supabase";
-import { createRun, listRuns } from "./api-client";
+import { createRun, createScenario, listRuns } from "./api-client";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
@@ -49,6 +49,38 @@ describe("api-client", () => {
       dispatch_date: "2024-04-18",
       level: "preideal",
     });
+  });
+
+  it("createScenario POSTs the body as JSON and returns the id", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "scn-1" }),
+    });
+
+    const result = await createScenario({
+      mode: "arbitrage",
+      penetration_level: "baseline",
+      units: [
+        {
+          name: "bess-1",
+          mwh_nom: 10,
+          hours_to_deplete: 4,
+          initial_soc: 0.5,
+          min_soc: 0.1,
+          max_soc: 0.9,
+          efficiency: 0.9,
+          charge_bid: 50,
+          discharge_bid: 200,
+        },
+      ],
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body);
+    expect(body.mode).toBe("arbitrage");
+    expect(body.units).toHaveLength(1);
+    expect(result).toEqual({ id: "scn-1" });
   });
 
   it("throws with status and body text when the response is not ok", async () => {
