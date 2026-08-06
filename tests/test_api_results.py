@@ -61,3 +61,25 @@ def test_get_run_artifact_404_for_unknown_artifact_name(api_client, tmp_path):
 
     resp = api_client.get(f"/runs/{run_id}/not-a-real-artifact")
     assert resp.status_code == 404
+
+
+def test_download_run_artifact_404_when_file_missing_on_disk(api_client, tmp_path):
+    resp = api_client.post("/runs", json={"dispatch_date": "2024-04-18", "level": "preideal"})
+    run_id = resp.json()["run_id"]
+
+    out_dir = tmp_path / "results" / run_id
+    out_dir.mkdir(parents=True)
+    dispatch_csv = out_dir / "dispatch_by_gen-2024-04-18-preideal.csv"  # never written
+
+    session = api_client.SessionLocal()
+    run = queries.get_run(session, run_id)
+    result = RunResult(
+        case=DispatchCase(dispatch_date=date(2024, 4, 18), level=DispatchLevel.preideal),
+        ok=True,
+        dispatch_path=str(dispatch_csv),
+    )
+    queries.finish_run_ok(session, run, result, out_dir=str(out_dir))
+    session.close()
+
+    resp = api_client.get(f"/runs/{run_id}/download/dispatch")
+    assert resp.status_code == 404

@@ -126,6 +126,8 @@ def _artifact_path(run, artifact: str) -> str:
     path = getattr(run, _ARTIFACT_PATHS[artifact])
     if path is None:
         raise HTTPException(status_code=404, detail=f"run has no {artifact} artifact yet")
+    if not get_storage(".").exists(path):
+        raise HTTPException(status_code=404, detail="artifact file missing on disk")
     return path
 
 
@@ -138,10 +140,7 @@ def get_run_artifact(
 ):
     run = _get_owned_run(session, run_id, user_id)
     path = _artifact_path(run, artifact)
-    storage = get_storage(".")
-    if not storage.exists(path):
-        raise HTTPException(status_code=404, detail="artifact file missing on disk")
-    with storage.open(path) as f:
+    with get_storage(".").open(path) as f:
         df = pd.read_csv(f)
     return df.to_dict(orient="records")
 
