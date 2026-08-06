@@ -6,11 +6,12 @@ BESS (Battery Energy Storage Systems) bajo distintos modos de participacion.
 
 Este README es el punto de entrada para humanos y agentes de IA. Antes de hacer
 cambios, lea especialmente las secciones de estado actual, datos requeridos y
-brechas conocidas. La documentación pública del proyecto vive también en
-[docs/index.md](docs/index.md) y está preparada para GitHub Pages.
+brechas conocidas.
 
-Para que GitHub Pages funcione correctamente, el repositorio debe tener Pages
-configurado con el origen en "GitHub Actions" desde la pestaña Settings → Pages.
+**📖 Documentación pública:** https://jccamargo94.github.io/despacho-udea/
+- Publicada automáticamente desde [docs/](docs/) mediante GitHub Pages y Jekyll
+- Incluye [formulación matemática](https://jccamargo94.github.io/despacho-udea/formulacion-matematica.html)
+de unit commitment y BESS
 
 ---
 
@@ -30,9 +31,8 @@ aplicacion dockerizada, reproducible y operable, con frontend, backend, worker d
 ejecucion, almacenamiento de resultados y configuracion de escenarios.
 
 La hoja de ruta extendida esta en
-[docs/roadmap-aplicacion-despacho.md](docs/roadmap-aplicacion-despacho.md) y el
-sitio público se publica desde [docs/index.html](docs/index.html) con la
-formulación matemática en [docs/formulacion-matematica.html](docs/formulacion-matematica.html).
+[docs/roadmap-aplicacion-despacho.md](docs/roadmap-aplicacion-despacho.md). El
+sitio público incluye la [formulación matemática](https://jccamargo94.github.io/despacho-udea/formulacion-matematica.html)
 
 ---
 
@@ -42,8 +42,9 @@ La documentación del repositorio ahora se actualiza en dos capas:
 
 - La documentación operativa y de contexto del repo vive en este README, en
   [AGENTS.md](AGENTS.md) y en las reglas de [.agents/rules](.agents/rules).
-- La documentación pública para GitHub Pages vive en [docs/index.html](docs/index.html)
-y [docs/formulacion-matematica.html](docs/formulacion-matematica.html).
+- La documentación pública para GitHub Pages vive en [docs/](docs/) como archivos
+  Markdown y se publica en https://jccamargo94.github.io/despacho-udea/ mediante
+  el workflow de GitHub Actions y Jekyll.
 
 Hoy el repositorio ya no es solo una coleccion de notebooks. Existe una primera
 extraccion hacia una aplicacion Python:
