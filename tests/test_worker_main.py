@@ -56,6 +56,15 @@ def test_process_once_solves_pending_run_end_to_end(tmp_path, monkeypatch):
     # matching tests/test_xm_smoke_run.py's own assertion
     assert queries.get_metric_set(session, run.id) is None
 
+    # new assertions
+    assert updated.log_path is not None
+    log_file = Path(updated.log_path)
+    assert log_file.exists()
+    # xm_smoke fixture has no preideal_price actuals, so run_case's
+    # "no XM actuals" branch (app/pipeline/runner.py:48) fires and prints —
+    # proof the log actually captured run_case's stdout, not an empty file.
+    assert "no XM actuals" in log_file.read_text()
+
 
 def test_process_once_marks_run_failed_when_run_case_reports_failure(tmp_path, monkeypatch):
     session = _session()
@@ -79,3 +88,4 @@ def test_process_once_marks_run_failed_when_run_case_reports_failure(tmp_path, m
     updated = queries.get_run(session, run.id)
     assert updated.status == "failed"
     assert updated.error == "boom"
+    assert updated.log_path is not None

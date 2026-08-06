@@ -83,3 +83,31 @@ def test_download_run_artifact_404_when_file_missing_on_disk(api_client, tmp_pat
 
     resp = api_client.get(f"/runs/{run_id}/download/dispatch")
     assert resp.status_code == 404
+
+
+def test_get_run_includes_bess_metrics(api_client, tmp_path):
+    from app.db.models import MetricSet
+
+    resp = api_client.post("/runs", json={"dispatch_date": "2024-04-18", "level": "preideal"})
+    run_id = resp.json()["run_id"]
+
+    session = api_client.SessionLocal()
+    session.add(
+        MetricSet(
+            run_id=run_id,
+            rmse=1.0,
+            bess_charge_mwh=12.5,
+            bess_discharge_mwh=11.0,
+            bess_avg_soc_mwh=5.5,
+            bess_net_revenue=987.0,
+        )
+    )
+    session.commit()
+    session.close()
+
+    resp = api_client.get(f"/runs/{run_id}")
+    metrics = resp.json()["metrics"]
+    assert metrics["bess_charge_mwh"] == 12.5
+    assert metrics["bess_discharge_mwh"] == 11.0
+    assert metrics["bess_avg_soc_mwh"] == 5.5
+    assert metrics["bess_net_revenue"] == 987.0

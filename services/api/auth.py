@@ -20,7 +20,12 @@ def decode_bearer_token(authorization: str, jwk_client: PyJWKClient) -> dict:
     token = authorization.removeprefix("Bearer ")
     try:
         signing_key = jwk_client.get_signing_key_from_jwt(token)
-        return jwt.decode(token, signing_key.key, algorithms=["RS256"], audience="authenticated")
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=[signing_key.algorithm_name],
+            audience="authenticated",
+        )
     except jwt.PyJWTError as e:
         raise HTTPException(status_code=401, detail=f"invalid token: {e}") from e
 

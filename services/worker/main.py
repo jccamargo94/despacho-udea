@@ -1,3 +1,5 @@
+import contextlib
+import io
 import time
 
 from sqlalchemy.orm import Session
@@ -7,6 +9,7 @@ from app.db.claim import claim_next_pending_run
 from app.db.session import get_engine, get_sessionmaker
 from app.pipeline.runner import run_case
 from app.schemas import BessScenario, DispatchCase, DispatchLevel
+from app.storage import get_storage
 
 POLL_INTERVAL_SECONDS = 5
 
@@ -45,7 +48,15 @@ def process_once(
     # solve, instead of pinning a pooler connection with an open transaction.
     session.commit()
 
-    result = run_case(case, evaluate=True, out=out_dir, data_dir=data_dir)
+    log_buffer = io.StringIO()
+    with contextlib.redirect_stdout(log_buffer), contextlib.redirect_stderr(log_buffer):
+        result = run_case(case, evaluate=True, out=out_dir, data_dir=data_dir)
+
+    log_path = f"{out_dir}/run.log"
+    with contextlib.suppress(OSError):
+        with get_storage(".").open(log_path, "w") as f:
+            f.write(log_buffer.getvalue())
+        run.log_path = log_path
 
     if result.ok:
         queries.finish_run_ok(session, run, result, out_dir=out_dir)
