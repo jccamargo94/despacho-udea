@@ -49,4 +49,57 @@ describe("RunComparisonTable", () => {
     expect(screen.getByText(/sin metricas/i)).toBeInTheDocument();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
+
+  it("renders a dash for individual null metric fields within populated metrics", () => {
+    const runs = [
+      makeRun({
+        run_id: "r3",
+        metrics: {
+          rmse: 1.5,
+          mae: 1.2,
+          bias: 0.1,
+          wape: 5.5,
+          smape: 4.4,
+          r2: null,
+          bess_charge_mwh: 10,
+          bess_discharge_mwh: 9,
+          bess_avg_soc_mwh: 5,
+          bess_net_revenue: 1000,
+        },
+      }),
+    ];
+    render(<RunComparisonTable runs={runs} />);
+    expect(screen.getByText("1.5")).toBeInTheDocument();
+    expect(screen.getByText("1000")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("shows metrics from one run even when another run has null metrics", () => {
+    const runs = [
+      makeRun({
+        run_id: "r1",
+        metrics: {
+          rmse: 1.5,
+          mae: 1.2,
+          bias: 0.1,
+          wape: 5.5,
+          smape: 4.4,
+          r2: 0.9,
+          bess_charge_mwh: 10,
+          bess_discharge_mwh: 9,
+          bess_avg_soc_mwh: 5,
+          bess_net_revenue: 1000,
+        },
+      }),
+      makeRun({
+        run_id: "r2",
+        metrics: null,
+      }),
+    ];
+    render(<RunComparisonTable runs={runs} />);
+    expect(screen.getByText("1.5")).toBeInTheDocument();
+    expect(screen.getByText("1000")).toBeInTheDocument();
+    expect(screen.getByText(/sin metricas/i)).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
 });
