@@ -31,4 +31,21 @@ describe("CreateRunForm", () => {
     );
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
   });
+
+  it("submits with the default solver (cbc)", async () => {
+    renderWithQueryClient(<CreateRunForm onCreated={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText(/fecha/i), { target: { value: "2024-04-18" } });
+    fireEvent.click(screen.getByRole("button", { name: /crear/i }));
+
+    await waitFor(() =>
+      expect(createRun).toHaveBeenCalledWith(expect.objectContaining({ solver: "cbc" }))
+    );
+  });
+
+  it("renders the HiGHS solver option as disabled", () => {
+    renderWithQueryClient(<CreateRunForm onCreated={vi.fn()} />);
+    const highsOption = screen.getByRole("option", { name: /highs/i }) as HTMLOptionElement;
+    expect(highsOption.disabled).toBe(true);
+  });
 });
