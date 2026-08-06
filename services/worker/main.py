@@ -40,6 +40,11 @@ def process_once(
     case = _build_case(session, case_row)
     out_dir = f"{results_root}/{run.id}"
 
+    # Close the read-only transaction _build_case's queries opened so the
+    # session sits idle (not idle-in-transaction) for the duration of the
+    # solve, instead of pinning a pooler connection with an open transaction.
+    session.commit()
+
     result = run_case(case, evaluate=True, out=out_dir, data_dir=data_dir)
 
     if result.ok:

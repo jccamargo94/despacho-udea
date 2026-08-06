@@ -339,6 +339,13 @@ Migraciones (requiere `DATABASE_URL` en el entorno):
 uv run alembic upgrade head
 ```
 
+Recuperacion manual de una corrida atascada: si una fila `runs` queda en
+`running` de forma permanente (p. ej. el worker murio a mitad de un solve),
+resetear su `status` a `pending` para que el worker la re-reclame. Si la
+corrida ya habia escrito una fila en `metric_sets` antes de atascarse, borrar
+esa fila primero — `metric_sets.run_id` es unico, y una segunda escritura
+fallara con un error de constraint.
+
 ---
 
 ## 9. Resultados
