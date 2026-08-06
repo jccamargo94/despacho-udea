@@ -13,3 +13,12 @@ export function formatBogotaTime(iso: string | null): string {
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
 }
+
+export function formatDuration(startedAt: string | null, finishedAt: string | null): string {
+  if (!startedAt || !finishedAt) return "--";
+  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
