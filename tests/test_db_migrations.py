@@ -52,3 +52,7 @@ def test_alembic_upgrade_head_creates_input_datasets_table(tmp_path):
         "row_count",
         "fetched_at",
     }.issubset(columns)
+
+    unique_constraints = inspect(engine).get_unique_constraints("input_datasets")
+    constraint_names = {c["name"] for c in unique_constraints}
+    assert "uq_input_datasets_dataset_partition_key" in constraint_names

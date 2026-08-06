@@ -546,7 +546,7 @@ Expected: all pass, including the 4 new tests.
 - [ ] **Step 5: Run the full suite**
 
 Run: `uv run pytest -q`
-Expected: all pass (141 + 2 (Task3) + 4 (Task5) = 147).
+Expected: all pass (140 + 1 (Task1) + 1 (Task2) + 2 (Task3) + 1 (Task4) + 4 (Task5) = 149).
 
 - [ ] **Step 6: Commit**
 
@@ -559,7 +559,7 @@ git commit -m "feat: add upsert_input_dataset/get_input_dataset manifest queries
 
 ## Done criteria
 
-- `uv run pytest -q` passes with 147 tests (140 baseline + 7 new).
+- `uv run pytest -q` passes with 149 tests (140 baseline + 9 new).
 - `GET`-style manual check: `uv run alembic upgrade head` against a scratch sqlite DB creates `input_datasets` with the exact columns in section 2 of the design doc.
-- `case_builder.py` has zero remaining plain `open()` calls for files under `data_dir` root — only the two pre-existing, documented exceptions (`dCondIniP`/`dCondIniU` via `resolve_input`) remain, per `2026-08-04-fase1-cli-completo-design.md`.
+- `case_builder.py` has zero remaining plain `open()` calls for files under `data_dir` root — only the four pre-existing, documented exceptions via `resolve_input` (`OFEI`, `dCondIniP`, `dCondIniU`, `PrId`) remain, per `2026-08-04-fase1-cli-completo-design.md`.
 - GitHub issues #24 and #25 can be closed, referencing the commits from Task 3/4/5 and Task 1/2 respectively.
