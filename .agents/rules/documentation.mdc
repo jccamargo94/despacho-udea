@@ -1,0 +1,22 @@
+---
+description: Keep documentation aligned with the repository's current implementation
+alwaysApply: true
+---
+
+# Documentation maintenance
+
+The documentation must reflect the actual state of the repository, not an idealized roadmap.
+
+## Required practice
+
+- When changing the CLI, data pipeline, model, schemas, deployment layout, or supported scenarios, update the relevant docs in README, AGENTS, and the docs site.
+- Prefer references to concrete files and commands over generic statements.
+- If a capability is only partially implemented, say so explicitly and mark it as partial or pending.
+- When the mathematical formulation changes, update the mathematical documentation page and the summary in the landing page.
+- Maintain a single source of truth for the long-term roadmap in docs/roadmap-aplicacion-despacho.md and mirror the current status in the site.
+
+## Minimum check before finishing a change
+
+- README and AGENTS mention the current architecture and workflows.
+- The GitHub Pages site includes the changed feature or workflow.
+- Any new BESS mode, CLI command, or solver assumption is documented with the corresponding evidence from the code.

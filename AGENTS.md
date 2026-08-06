@@ -10,8 +10,10 @@ archivo.
 |---|---|
 | Contexto siempre-activo (dominio, layout, toolchain, workflow, gotchas verificados) | [`.agents/rules/overview.mdc`](.agents/rules/overview.mdc) |
 | Convenciones Python reales de este repo (pydantic v2, Storage, Pyomo/solver, testing) | [`.agents/rules/python-patterns.mdc`](.agents/rules/python-patterns.mdc) |
+| Mantenimiento de documentación y GitHub Pages | [`.agents/rules/documentation.mdc`](.agents/rules/documentation.mdc) y [`.agents/rules/github-pages.mdc`](.agents/rules/github-pages.mdc) |
 | Vision, mapa del repo, instalacion, datos requeridos, brechas conocidas | [`README.md`](README.md) (secciones 1-14) |
 | Hacia donde va el proyecto, fases | [`docs/roadmap-aplicacion-despacho.md`](docs/roadmap-aplicacion-despacho.md) |
+| Documentación pública para GitHub Pages | [docs/index.html](docs/index.html) y [docs/formulacion-matematica.html](docs/formulacion-matematica.html) |
 | Diseno + plan de una fase/feature especifica ya implementada | `docs/superpowers/specs/` + `docs/superpowers/plans/` (un par por fase) |
 
 ## Reglas basicas (siempre aplican)

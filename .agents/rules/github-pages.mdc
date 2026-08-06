@@ -1,0 +1,15 @@
+---
+description: Keep the GitHub Pages documentation site fresh and deployable
+aalwaysApply: true
+---
+
+# GitHub Pages site
+
+The repository contains a static documentation site under docs/ and a workflow to publish it through GitHub Pages.
+
+## Expectations
+
+- Keep docs/index.html as the landing page and ensure it links to the main docs pages.
+- Add or update a page under docs/ whenever a user-facing capability, workflow, or mathematical formulation changes.
+- Keep the site self-contained and avoid referencing unpublished features as if they were already implemented.
+- When the deployment workflow changes, verify that docs/ is still the publish path.
