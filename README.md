@@ -7,7 +7,10 @@ BESS (Battery Energy Storage Systems) bajo distintos modos de participacion.
 Este README es el punto de entrada para humanos y agentes de IA. Antes de hacer
 cambios, lea especialmente las secciones de estado actual, datos requeridos y
 brechas conocidas. La documentación pública del proyecto vive también en
-[docs/index.html](docs/index.html) y está preparada para GitHub Pages.
+[docs/index.md](docs/index.md) y está preparada para GitHub Pages.
+
+Para que GitHub Pages funcione correctamente, el repositorio debe tener Pages
+configurado con el origen en "GitHub Actions" desde la pestaña Settings → Pages.
 
 ---
 
