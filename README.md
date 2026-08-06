@@ -143,7 +143,7 @@ data/                # insumos y resultados; git-ignored
 solver/              # artefactos locales del solver; git-ignored
 
 Dockerfile           # imagen runtime (CBC + deps, sin data/ ni notebooks)
-docker-compose.yml   # servicio cli + placeholders api/worker (Fase 3)
+docker-compose.yml   # servicios cli, api y worker (Fase 3, api/worker bajo profile "backend")
 .dockerignore
 ```
 
@@ -314,6 +314,38 @@ Mismo comando via Docker (ver seccion 6):
 docker compose run --rm cli run 2024-04-18 -t preideal
 ```
 
+### Backend API, worker y migraciones (Fase 3)
+
+Desde Fase 3 el repo tambien incluye un backend HTTP (`services/api/`) y un
+worker que ejecuta corridas por polling de la base de datos (`services/worker/`).
+
+Local (requiere `DATABASE_URL` en el entorno; la API ademas requiere
+`SUPABASE_JWKS_URL` para verificar JWTs de Supabase):
+
+```bash
+uv run uvicorn services.api.main:app --reload
+uv run python -m services.worker.main
+```
+
+Con Docker (requiere un archivo `.env` en la raiz — copiar `.env.example`):
+
+```bash
+docker compose --profile backend up --build
+```
+
+Migraciones (requiere `DATABASE_URL` en el entorno):
+
+```bash
+uv run alembic upgrade head
+```
+
+Recuperacion manual de una corrida atascada: si una fila `runs` queda en
+`running` de forma permanente (p. ej. el worker murio a mitad de un solve),
+resetear su `status` a `pending` para que el worker la re-reclame. Si la
+corrida ya habia escrito una fila en `metric_sets` antes de atascarse, borrar
+esa fila primero — `metric_sets.run_id` es unico, y una segunda escritura
+fallara con un error de constraint.
+
 ---
 
 ## 9. Resultados
@@ -373,8 +405,7 @@ comparativas contra los scripts previos.
 - Los modos BESS no estan modelados aun como una interfaz de escenario clara.
 - Falta una salida BESS completa: carga, descarga, SOC, pagos/remuneracion y
   comparaciones por escenario.
-- No existe backend HTTP ni frontend.
-- No existe persistencia de ejecuciones, metadatos, artefactos y logs.
+- No existe frontend (backend HTTP ya existe desde Fase 3, ver seccion 8).
 - Los supuestos para correr semanas futuras no estan formalizados en modulos de
   forecasting.
 

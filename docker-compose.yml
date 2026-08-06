@@ -6,9 +6,26 @@ services:
     command: ["run"]
 
   api:
-    build: ./services/api
-    profiles: ["future"]
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    profiles: ["backend"]
+    restart: unless-stopped
 
   worker:
-    build: ./services/worker
-    profiles: ["future"]
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./data:/app/data
+    profiles: ["backend"]
+    restart: unless-stopped
