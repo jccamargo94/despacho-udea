@@ -346,6 +346,33 @@ corrida ya habia escrito una fila en `metric_sets` antes de atascarse, borrar
 esa fila primero — `metric_sets.run_id` es unico, y una segunda escritura
 fallara con un error de constraint.
 
+### Frontend (Fase 4)
+
+Desde Fase 4 el repo incluye un frontend Next.js (`frontend/`) construido con
+pnpm y TypeScript. Permite configurar parametros de ejecucion, lanzar corridas
+y consultar resultados a traves de la interfaz web.
+
+Local (requiere `frontend/.env.local` copiado desde `frontend/.env.local.example`
+con URLs/claves reales de Supabase y backend; tambien requiere `FRONTEND_ORIGIN`
+en el `.env` de la raiz para que el backend CORS permita el frontend):
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+El frontend se conecta al backend FastAPI via `NEXT_PUBLIC_API_BASE_URL`. El backend
+requiere que `FRONTEND_ORIGIN` esté configurado (p. ej. `http://localhost:3000`)
+en la raiz `.env` para permitir requests CORS desde el navegador.
+
+Con Docker (requiere `.env` en la raiz — copiar `.env.example`; el perfil
+`frontend` construira solo la parte frontend):
+
+```bash
+docker compose --profile frontend up --build
+```
+
 ---
 
 ## 9. Resultados
