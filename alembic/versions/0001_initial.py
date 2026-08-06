@@ -23,7 +23,7 @@ def upgrade() -> None:
         sa.Column("penetration_level", sa.String(), nullable=False),
         sa.Column("units", sa.JSON(), nullable=False),
         sa.Column("created_by", sa.String(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_table(
         "cases",
@@ -40,9 +40,9 @@ def upgrade() -> None:
         sa.Column("case_id", sa.String(), sa.ForeignKey("cases.id"), nullable=False),
         sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("status", sa.String(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("started_at", sa.DateTime(), nullable=True),
-        sa.Column("finished_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("error", sa.String(), nullable=True),
         sa.Column("out_dir", sa.String(), nullable=True),
         sa.Column("dispatch_path", sa.String(), nullable=True),
