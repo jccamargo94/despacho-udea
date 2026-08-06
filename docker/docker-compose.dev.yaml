@@ -38,7 +38,8 @@ services:
     # `docker compose restart worker` to pick it up.
 
   frontend:
-    image: node:20-alpine
+    # pnpm@11.8.0 (frontend/package.json packageManager) requires Node >=22.13
+    image: node:22-alpine
     working_dir: /app
     command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev"
     env_file:
