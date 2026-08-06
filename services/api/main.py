@@ -147,6 +147,11 @@ def get_run_detail(
         if metric_set
         else None
     )
+    out["artifacts"] = {
+        "dispatch": run.dispatch_path is not None,
+        "prices": run.price_path is not None,
+        "bess": run.bess_path is not None,
+    }
     return out
 
 
