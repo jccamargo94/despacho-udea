@@ -1,5 +1,9 @@
 # despacho-udea — modelo academico de despacho electrico colombiano
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)
+[![Docs](https://img.shields.io/badge/docs-github%20pages-informational.svg)](https://jccamargo94.github.io/despacho-udea/)
+
 Repositorio academico para aproximar el despacho electrico colombiano, comparar
 resultados contra informacion publicada por XM y estudiar el efecto de incorporar
 BESS (Battery Energy Storage Systems) bajo distintos modos de participacion.
@@ -12,6 +16,53 @@ brechas conocidas.
 - Publicada automáticamente desde [docs/](docs/) mediante GitHub Pages y Jekyll
 - Incluye [formulación matemática](https://jccamargo94.github.io/despacho-udea/formulacion-matematica.html)
 de unit commitment y BESS
+
+## English summary
+
+Academic Pyomo unit-commitment model that approximates Colombia's electricity
+dispatch and marginal price, validated against data published by [XM](https://www.xm.com.co/)
+(the Colombian grid operator), plus a study of adding BESS (battery) resources
+under different market participation modes. Ships as a Python domain library +
+Typer CLI, a FastAPI backend with a polling worker, a Next.js frontend, and a
+Dockerized dev setup. Jump to [Quickstart](#quickstart) to run it locally, or
+[Repository map](#5-mapa-del-repositorio) for the layout. Full docs (Spanish)
+continue below and at the [GitHub Pages site](https://jccamargo94.github.io/despacho-udea/).
+
+## Quickstart
+
+Runs with zero external data or credentials — CLI, model, and tests work
+against the repo's synthetic fixture out of the box:
+
+```bash
+sudo apt-get install coinor-cbc      # solver used by the Pyomo model
+uv sync --group dev
+uv run pytest -q                     # 138 tests, no external data needed
+```
+
+Running the CLI against a real date (`uv run python -m app run 2024-04-18`)
+needs XM input files under `data/` (git-ignored, not included — see
+[§7](#7-datos-requeridos)) and either downloads them or reads a local copy.
+The backend API/worker need `DATABASE_URL` (Postgres) and the frontend needs
+Supabase credentials — see [§8](#8-como-ejecutar).
+
+No local Python/solver install? Use Docker — see [§6](#6-instalacion-local).
+
+## Indice
+
+1. [Vision del proyecto](#1-vision-del-proyecto)
+2. [Que existe hoy](#2-que-existe-hoy)
+3. [Variantes de despacho implementadas](#3-variantes-de-despacho-implementadas)
+4. [Conceptos importantes](#4-conceptos-importantes)
+5. [Mapa del repositorio](#5-mapa-del-repositorio)
+6. [Instalacion local](#6-instalacion-local)
+7. [Datos requeridos](#7-datos-requeridos)
+8. [Como ejecutar](#8-como-ejecutar)
+9. [Resultados](#9-resultados)
+10. [Pruebas](#10-pruebas)
+11. [Brechas conocidas](#11-brechas-conocidas)
+12. [Hacia donde se quiere llegar](#12-hacia-donde-se-quiere-llegar)
+13. [Backtesting y escenarios futuros](#13-backtesting-y-escenarios-futuros)
+14. [Notas para agentes de IA](#14-notas-para-agentes-de-ia)
 
 ---
 
@@ -32,7 +83,9 @@ ejecucion, almacenamiento de resultados y configuracion de escenarios.
 
 La hoja de ruta extendida esta en
 [docs/roadmap-aplicacion-despacho.md](docs/roadmap-aplicacion-despacho.md). El
-sitio público incluye la [formulación matemática](https://jccamargo94.github.io/despacho-udea/formulacion-matematica.html)
+sitio público se publica desde [docs/index.md](docs/index.md) con la
+formulación matemática en [docs/formulacion-matematica.md](docs/formulacion-matematica.md)
+(renderizada en vivo como [formulación matemática](https://jccamargo94.github.io/despacho-udea/formulacion-matematica.html)).
 
 ---
 
@@ -42,9 +95,9 @@ La documentación del repositorio ahora se actualiza en dos capas:
 
 - La documentación operativa y de contexto del repo vive en este README, en
   [AGENTS.md](AGENTS.md) y en las reglas de [.agents/rules](.agents/rules).
-- La documentación pública para GitHub Pages vive en [docs/](docs/) como archivos
-  Markdown y se publica en https://jccamargo94.github.io/despacho-udea/ mediante
-  el workflow de GitHub Actions y Jekyll.
+- La documentación pública para GitHub Pages vive en [docs/index.md](docs/index.md)
+  y [docs/formulacion-matematica.md](docs/formulacion-matematica.md), publicada
+  en https://jccamargo94.github.io/despacho-udea/ mediante GitHub Actions y Jekyll.
 
 Hoy el repositorio ya no es solo una coleccion de notebooks. Existe una primera
 extraccion hacia una aplicacion Python:
@@ -55,8 +108,8 @@ extraccion hacia una aplicacion Python:
 - `app/cli.py`: CLI Typer para ejecutar corridas desde terminal.
 - `tests/`: pruebas unitarias de parsers, rutas, metricas, resultados, CLI y
   orquestacion.
-- `*.ipynb`: notebooks exploratorios que todavia contienen analisis, ETL,
-  graficas y comparaciones no migradas por completo a la app.
+- `notebooks/*.ipynb`: notebooks exploratorios que todavia contienen analisis,
+  ETL, graficas y comparaciones no migradas por completo a la app.
 
 El flujo funcional actual es:
 
@@ -137,28 +190,45 @@ app/
     runner.py       # orquesta build -> solve -> save -> evaluate
     evaluate.py      # re-score post-hoc de una corrida ya guardada
     scenarios.py     # carga escenarios BESS declarativos (scenarios/bess/*.yaml)
+  schemas/           # modelos pydantic v2: DispatchCase, InputPack, RunResult, BessScenario
   storage/           # abstraccion Storage (LocalStorage hoy; GCS a futuro)
+  db/                # modelos SQLAlchemy y acceso a datos (runs, metric_sets)
   utils/
     metrics.py      # metricas de evaluacion
     misc.py         # compatibilidad hacia app.data.download
 
+services/
+  api/              # backend FastAPI (Fase 3): crea/lista corridas, sirve resultados
+  worker/           # worker de polling sobre la DB (app/db/claim.py); no usa Celery
+
+frontend/            # app Next.js (Fase 4): configurar y lanzar corridas, ver resultados
+alembic/             # migraciones de la base de datos (alembic upgrade head)
+
 scenarios/bess/      # escenarios BESS declarativos (YAML) usados por --bess-scenario
 run_dispatch.py     # runner legado de una fecha; conserva compatibilidad
 get_date_results.py # runner legado batch
-*.ipynb             # notebooks exploratorios y ETL no migrado
+notebooks/*.ipynb   # notebooks exploratorios y ETL no migrado
 
 docs/
-  roadmap-aplicacion-despacho.md # vision y fases hacia app dockerizada
-  superpowers/specs/             # diseno de la CLI actual
-  superpowers/plans/             # plan de implementacion de la CLI actual
+  index.md                        # landing page del sitio (GitHub Pages, Jekyll)
+  formulacion-matematica.md       # formulacion matematica publicada
+  roadmap-aplicacion-despacho.md  # vision y fases hacia app dockerizada
+  superpowers/specs/              # diseno de la CLI actual
+  superpowers/plans/              # plan de implementacion de la CLI actual
+
+.github/workflows/pages.yml  # publica docs/ a GitHub Pages en push a main/develop
 
 tests/               # suite pytest
 data/                # insumos y resultados; git-ignored
 solver/              # artefactos locales del solver; git-ignored
 
-Dockerfile           # imagen runtime (CBC + deps, sin data/ ni notebooks)
-docker-compose.yml   # servicios cli, api y worker (Fase 3, api/worker bajo profile "backend")
-.dockerignore
+docker/
+  Dockerfile.cli            # imagen CLI runtime (CBC + deps, sin data/ ni notebooks)
+  Dockerfile.api             # imagen backend FastAPI
+  Dockerfile.worker          # imagen worker de polling
+  docker-compose.yml         # cli, api y worker (api/worker bajo profile "backend")
+  docker-compose.dev.yaml    # api + worker + frontend con hot-reload, para dev local
+.dockerignore         # se queda en la raiz: el build context de docker/ sigue siendo la raiz
 ```
 
 ---
@@ -181,11 +251,18 @@ Entorno Python:
 uv sync --group dev
 ```
 
-Para trabajar con los notebooks exploratorios de la raiz, agregar el extra:
+Para trabajar con los notebooks exploratorios de `notebooks/`, agregar el extra:
 
 ```bash
 uv sync --group dev --extra notebooks
 ```
+
+Los notebooks asumen que el directorio de trabajo del kernel es la raiz del
+repo (leen/escriben rutas como `data/...` relativas a la raiz), no
+`notebooks/`. En VS Code esto ya esta configurado via
+`jupyter.notebookFileRoot` en `.vscode/settings.json`. Con Jupyter classic/Lab
+por fuera de VS Code, lance `jupyter lab` desde la raiz del repo o ejecute
+`%cd ..` como primera celda antes de correr el resto del notebook.
 
 Verificacion basica:
 
@@ -197,19 +274,22 @@ uv run pytest -q
 ### Con Docker (alternativa a instalacion local)
 
 Requiere Docker. No necesita `uv` ni CBC instalados en el host — ambos
-viven dentro de la imagen.
+viven dentro de la imagen. Todos los Dockerfiles y archivos compose viven en
+[`docker/`](docker/); el contexto de build sigue siendo la raiz del repo, por
+eso los comandos usan `-f docker/...` y `--project-directory .` (ancla
+`./data`, `./.env` y el build context a la raiz en vez de a `docker/`).
 
 ```bash
-docker build -t despacho-udea .
+docker build -f docker/Dockerfile.cli -t despacho-udea .
 docker run --rm --entrypoint uv despacho-udea run --no-sync python -c \
   "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
 ```
 
 Para correr contra datos reales, montar `data/` como volumen (ver
-`docker-compose.yml`, servicio `cli`):
+`docker/docker-compose.yml`, servicio `cli`):
 
 ```bash
-docker compose run --rm cli run 2024-04-18 -t preideal
+docker compose --project-directory . --env-file .env -f docker/docker-compose.yml run --rm cli run 2024-04-18 -t preideal
 ```
 
 ---
@@ -270,8 +350,8 @@ data/preideal_dispatch/{YYYY-MM-DD}.txt
 `app/data/download.py` descarga archivos por fecha hacia `data/{YYYY-MM-DD}/`.
 La CLI invoca `ensure_data_for_date()` cuando necesita datos por fecha.
 
-Los CSVs base todavia dependen principalmente de `data_fetcher.ipynb`; esa ETL
-no esta migrada por completo a la aplicacion.
+Los CSVs base todavia dependen principalmente de `notebooks/data_fetcher.ipynb`;
+esa ETL no esta migrada por completo a la aplicacion.
 
 ---
 
@@ -325,7 +405,7 @@ print(res.ok, res.metrics)
 Mismo comando via Docker (ver seccion 6):
 
 ```bash
-docker compose run --rm cli run 2024-04-18 -t preideal
+docker compose --project-directory . --env-file .env -f docker/docker-compose.yml run --rm cli run 2024-04-18 -t preideal
 ```
 
 ### Backend API, worker y migraciones (Fase 3)
@@ -344,7 +424,7 @@ uv run python -m services.worker.main
 Con Docker (requiere un archivo `.env` en la raiz — copiar `.env.example`):
 
 ```bash
-docker compose --profile backend up --build
+docker compose --project-directory . --env-file .env --profile backend -f docker/docker-compose.yml up --build
 ```
 
 Migraciones (requiere `DATABASE_URL` en el entorno):
@@ -359,6 +439,33 @@ resetear su `status` a `pending` para que el worker la re-reclame. Si la
 corrida ya habia escrito una fila en `metric_sets` antes de atascarse, borrar
 esa fila primero — `metric_sets.run_id` es unico, y una segunda escritura
 fallara con un error de constraint.
+
+### Frontend (Fase 4)
+
+Desde Fase 4 el repo incluye un frontend Next.js (`frontend/`) construido con
+pnpm y TypeScript. Permite configurar parametros de ejecucion, lanzar corridas
+y consultar resultados a traves de la interfaz web.
+
+Local (requiere `frontend/.env.local` copiado desde `frontend/.env.local.example`
+con URLs/claves reales de Supabase y backend; tambien requiere `FRONTEND_ORIGIN`
+en el `.env` de la raiz para que el backend CORS permita el frontend):
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+El frontend se conecta al backend FastAPI via `NEXT_PUBLIC_API_BASE_URL`. El backend
+requiere que `FRONTEND_ORIGIN` esté configurado (p. ej. `http://localhost:3000`)
+en la raiz `.env` para permitir requests CORS desde el navegador.
+
+Con Docker, para levantar api + worker + frontend juntos en modo desarrollo
+(hot-reload; requiere `.env` en la raiz y `frontend/.env.local`, ver arriba):
+
+```bash
+docker compose --project-directory . --env-file .env -f docker/docker-compose.dev.yaml up --build
+```
 
 ---
 
@@ -419,9 +526,8 @@ comparativas contra los scripts previos.
 - Los modos BESS no estan modelados aun como una interfaz de escenario clara.
 - Falta una salida BESS completa: carga, descarga, SOC, pagos/remuneracion y
   comparaciones por escenario.
-- No existe frontend (backend HTTP ya existe desde Fase 3, ver seccion 8).
 - Los supuestos para correr semanas futuras no estan formalizados en modulos de
-  forecasting.
+  forecasting (Fase 5, aun sin diseno).
 
 ---
 
@@ -452,15 +558,16 @@ Antes de construir API/frontend, conviene cerrar estas piezas:
 
 ### Fases sugeridas
 
-1. **Estabilizar el core:** validar `case_builder` con datos reales
-   (`case_builder` sigue sin validacion end-to-end; ver seccion de brechas).
-2. **Dockerizar:** crear imagen con solver, dependencias runtime y smoke tests.
-3. **Persistir ejecuciones:** agregar DB y modelo de artefactos/resultados.
-4. **Agregar backend y worker:** separar API de ejecucion pesada.
-5. **Agregar frontend:** construir interfaz operativa para configuracion,
-   seguimiento y comparacion.
-6. **Forecast:** producir insumos futuros con supuestos explicitos de precios de
-   oferta, disponibilidad y demanda.
+1. **Estabilizar el core** — hecho parcialmente: `case_builder` validado
+   end-to-end contra fixture sintetico (Fase 2B); sigue sin validar contra
+   datos historicos reales de XM (ver seccion de brechas).
+2. **Dockerizar** — hecho (Fase 2C): imagen con solver, dependencias runtime.
+3. **Persistir ejecuciones** — hecho (Fase 3): DB + modelo de runs/metric_sets.
+4. **Agregar backend y worker** — hecho (Fase 3): `services/api/`, `services/worker/`.
+5. **Agregar frontend** — hecho (Fase 4): `frontend/`, interfaz para configurar,
+   lanzar y comparar corridas.
+6. **Forecast** — pendiente (Fase 5, sin diseno aun): producir insumos futuros
+   con supuestos explicitos de precios de oferta, disponibilidad y demanda.
 
 ---
 

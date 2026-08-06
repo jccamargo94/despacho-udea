@@ -1,8 +1,10 @@
+import os
 from datetime import date
 
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from app.db import queries
@@ -12,6 +14,16 @@ from app.storage import get_storage
 from services.api.auth import get_current_user_id
 
 app = FastAPI(title="despacho-udea API")
+
+_frontend_origins = [
+    origin.strip() for origin in os.environ.get("FRONTEND_ORIGIN", "").split(",") if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_frontend_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _engine = None
 _session_local = None
@@ -39,6 +51,23 @@ def create_scenario(
     return {"id": row.id}
 
 
+@app.get("/scenarios")
+def list_scenarios_endpoint(
+    user_id: str = Depends(get_current_user_id), session=Depends(get_session)
+):
+    scenarios = queries.list_scenarios(session)
+    return [
+        {
+            "id": s.id,
+            "mode": s.mode,
+            "penetration_level": s.penetration_level,
+            "units": s.units,
+            "created_at": s.created_at,
+        }
+        for s in scenarios
+    ]
+
+
 class RunCreateRequest(BaseModel):
     dispatch_date: date
     level: DispatchLevel
@@ -47,10 +76,13 @@ class RunCreateRequest(BaseModel):
     scenario_id: str | None = None
 
 
-def _run_summary(run) -> dict:
+def _run_summary(run, case) -> dict:
     return {
         "run_id": run.id,
         "status": run.status,
+        "dispatch_date": case.dispatch_date,
+        "level": case.level,
+        "scenario_id": case.scenario_id,
         "created_at": run.created_at,
         "started_at": run.started_at,
         "finished_at": run.finished_at,
@@ -88,7 +120,7 @@ def create_run(
 @app.get("/runs")
 def list_runs(user_id: str = Depends(get_current_user_id), session=Depends(get_session)):
     runs = queries.list_runs_for_user(session, user_id)
-    return [_run_summary(r) for r in runs]
+    return [_run_summary(r, queries.get_case(session, r.case_id)) for r in runs]
 
 
 @app.get("/runs/{run_id}")
@@ -96,8 +128,9 @@ def get_run_detail(
     run_id: str, user_id: str = Depends(get_current_user_id), session=Depends(get_session)
 ):
     run = _get_owned_run(session, run_id, user_id)
+    case = queries.get_case(session, run.case_id)
     metric_set = queries.get_metric_set(session, run.id)
-    out = _run_summary(run)
+    out = _run_summary(run, case)
     out["metrics"] = (
         {
             "rmse": metric_set.rmse,
@@ -106,11 +139,32 @@ def get_run_detail(
             "wape": metric_set.wape,
             "smape": metric_set.smape,
             "r2": metric_set.r2,
+            "bess_charge_mwh": metric_set.bess_charge_mwh,
+            "bess_discharge_mwh": metric_set.bess_discharge_mwh,
+            "bess_avg_soc_mwh": metric_set.bess_avg_soc_mwh,
+            "bess_net_revenue": metric_set.bess_net_revenue,
         }
         if metric_set
         else None
     )
+    out["artifacts"] = {
+        "dispatch": run.dispatch_path is not None,
+        "prices": run.price_path is not None,
+        "bess": run.bess_path is not None,
+    }
     return out
+
+
+@app.get("/runs/{run_id}/log")
+def get_run_log(
+    run_id: str, user_id: str = Depends(get_current_user_id), session=Depends(get_session)
+):
+    run = _get_owned_run(session, run_id, user_id)
+    if run.log_path is None or not get_storage(".").exists(run.log_path):
+        raise HTTPException(status_code=404, detail="run has no log yet")
+    with get_storage(".").open(run.log_path) as f:
+        content = f.read()
+    return PlainTextResponse(content)
 
 
 _ARTIFACT_PATHS = {

@@ -1,6 +1,11 @@
+# Run from repo root with: docker compose --project-directory . -f docker/docker-compose.yml <cmd>
+# --project-directory . anchors ./data, ./.env and build contexts at the repo root
+# rather than at this file's own directory (docker/).
 services:
   cli:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cli
     volumes:
       - ./data:/app/data
     command: ["run"]
@@ -8,7 +13,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: services/api/Dockerfile
+      dockerfile: docker/Dockerfile.api
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL}
@@ -22,7 +27,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: services/worker/Dockerfile
+      dockerfile: docker/Dockerfile.worker
     environment:
       - DATABASE_URL=${DATABASE_URL}
     volumes:

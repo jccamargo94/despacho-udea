@@ -3,28 +3,45 @@ import time
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from fastapi import HTTPException
 
 from services.api.auth import decode_bearer_token
 
 
 class _FakeSigningKey:
-    def __init__(self, key):
+    def __init__(self, key, algorithm_name="RS256"):
         self.key = key
+        self.algorithm_name = algorithm_name
 
 
 class _FakeJWKClient:
-    def __init__(self, public_key):
+    def __init__(self, public_key, algorithm_name="RS256"):
         self._public_key = public_key
+        self._algorithm_name = algorithm_name
 
     def get_signing_key_from_jwt(self, token):
-        return _FakeSigningKey(self._public_key)
+        return _FakeSigningKey(self._public_key, self._algorithm_name)
 
 
 @pytest.fixture
 def rsa_keypair():
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    public_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return private_pem, public_pem
+
+
+@pytest.fixture
+def ec_keypair():
+    private_key = ec.generate_private_key(ec.SECP256R1())
     private_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
@@ -86,3 +103,17 @@ def test_decode_bearer_token_rejects_signature_from_wrong_key(rsa_keypair):
     with pytest.raises(HTTPException) as exc_info:
         decode_bearer_token(f"Bearer {token}", _FakeJWKClient(other_public_pem))
     assert exc_info.value.status_code == 401
+
+
+def test_decode_bearer_token_accepts_es256_token_like_real_supabase_project(ec_keypair):
+    private_pem, public_pem = ec_keypair
+    payload = {
+        "sub": "user-1",
+        "aud": "authenticated",
+        "exp": int(time.time()) + 3600,
+    }
+    token = jwt.encode(payload, private_pem, algorithm="ES256")
+    result = decode_bearer_token(
+        f"Bearer {token}", _FakeJWKClient(public_pem, algorithm_name="ES256")
+    )
+    assert result["sub"] == "user-1"
