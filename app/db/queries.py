@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Case, MetricSet, Run, Scenario
+from app.db.models import Case, InputDataset, MetricSet, Run, Scenario
 from app.schemas import BessScenario, RunResult
 
 
@@ -111,3 +111,46 @@ def finish_run_failed(session: Session, run: Run, error: str) -> None:
     run.error = error
     session.add(run)
     session.commit()
+
+
+def upsert_input_dataset(
+    session: Session,
+    *,
+    dataset: str,
+    partition_key: str,
+    source: str,
+    checksum: str | None = None,
+    row_count: int | None = None,
+) -> InputDataset:
+    stmt = select(InputDataset).where(
+        InputDataset.dataset == dataset, InputDataset.partition_key == partition_key
+    )
+    existing = session.scalars(stmt).first()
+    if existing is not None:
+        existing.source = source
+        existing.checksum = checksum
+        existing.row_count = row_count
+        existing.fetched_at = datetime.now(timezone.utc)
+        session.add(existing)
+        session.commit()
+        session.refresh(existing)
+        return existing
+
+    row = InputDataset(
+        dataset=dataset,
+        partition_key=partition_key,
+        source=source,
+        checksum=checksum,
+        row_count=row_count,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def get_input_dataset(session: Session, dataset: str, partition_key: str) -> InputDataset | None:
+    stmt = select(InputDataset).where(
+        InputDataset.dataset == dataset, InputDataset.partition_key == partition_key
+    )
+    return session.scalars(stmt).first()
