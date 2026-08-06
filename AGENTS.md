@@ -35,11 +35,15 @@ archivo.
   commit, PR body, commit title, commit message.
 - Python: ver [`.agents/rules/python-patterns.mdc`](.agents/rules/python-patterns.mdc)
   para el detalle completo (pydantic v2, Storage, Pyomo/solver default,
-  testing). No copiar convenciones de otro proyecto/stack — este repo no usa
-  FastAPI, Celery, Redis ni Thori.
+  testing). Desde Fase 3 este repo si usa FastAPI (`services/api/`); el
+  worker sigue siendo un loop de polling sobre la DB (`app/db/claim.py`), no
+  Celery. No copie convenciones de otro proyecto/stack — Celery, Redis y
+  Thori siguen genuinamente ausentes de este repo.
 
 ---
 
 *AGENTS.md reescrito 2026-08-05 para reflejar despacho-udea (el contenido
 previo era una plantilla de otro proyecto — referenciaba `thori-overview.mdc`,
-`thori-pr-reviewer`, FastAPI/Celery/Redis, que no existen en este repo).*
+`thori-pr-reviewer` y convenciones de Celery/Redis, que no existen en este
+repo). FastAPI si existe desde Fase 3 (`services/api/`); Celery, Redis y
+Thori siguen ausentes.*
