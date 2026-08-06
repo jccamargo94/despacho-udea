@@ -21,7 +21,7 @@ export function RunComparisonTable({ runs }: { runs: RunDetail[] }) {
           <th>Metrica</th>
           {runs.map((run) => (
             <th key={run.run_id}>
-              {run.dispatch_date} ({run.level})
+              {run.dispatch_date} ({run.level}) — {run.scenario_id?.slice(0, 8)}
               {run.metrics === null && " (sin metricas)"}
             </th>
           ))}

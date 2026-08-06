@@ -26,6 +26,7 @@ export default function ComparePage() {
       <h1>Comparador</h1>
       {runsQuery.isLoading && <p>Cargando ejecuciones...</p>}
       {runsQuery.data && <RunSelector runs={runsQuery.data} selectedIds={selectedIds} onToggle={toggle} />}
+      {comparisons.some((c) => c.isError) && <p role="alert">No se pudo cargar alguna ejecucion.</p>}
       {loadedRuns.length > 0 && <RunComparisonTable runs={loadedRuns} />}
     </div>
   );

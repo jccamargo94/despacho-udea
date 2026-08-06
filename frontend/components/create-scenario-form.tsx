@@ -9,7 +9,7 @@ function emptyUnit(): BessUnit {
   return {
     name: "",
     mwh_nom: 0,
-    hours_to_deplete: 0,
+    hours_to_deplete: 1,
     initial_soc: 0,
     min_soc: 0,
     max_soc: 0,
@@ -84,6 +84,7 @@ export function CreateScenarioForm({ onCreated }: { onCreated: () => void }) {
           <input
             id={`unit-${i}-mwh_nom`}
             type="number"
+            step="any"
             value={unit.mwh_nom}
             onChange={(e) => updateUnit(i, { mwh_nom: Number(e.target.value) })}
             required
@@ -93,42 +94,56 @@ export function CreateScenarioForm({ onCreated }: { onCreated: () => void }) {
           <input
             id={`unit-${i}-hours_to_deplete`}
             type="number"
+            step="any"
+            min="0.01"
             value={unit.hours_to_deplete}
             onChange={(e) => updateUnit(i, { hours_to_deplete: Number(e.target.value) })}
             required
           />
 
-          <label htmlFor={`unit-${i}-initial_soc`}>SOC inicial</label>
+          <label htmlFor={`unit-${i}-initial_soc`}>SOC inicial (fraccion 0-1)</label>
           <input
             id={`unit-${i}-initial_soc`}
             type="number"
+            step="any"
+            min="0"
+            max="1"
             value={unit.initial_soc}
             onChange={(e) => updateUnit(i, { initial_soc: Number(e.target.value) })}
             required
           />
 
-          <label htmlFor={`unit-${i}-min_soc`}>SOC minimo</label>
+          <label htmlFor={`unit-${i}-min_soc`}>SOC minimo (fraccion 0-1)</label>
           <input
             id={`unit-${i}-min_soc`}
             type="number"
+            step="any"
+            min="0"
+            max="1"
             value={unit.min_soc}
             onChange={(e) => updateUnit(i, { min_soc: Number(e.target.value) })}
             required
           />
 
-          <label htmlFor={`unit-${i}-max_soc`}>SOC maximo</label>
+          <label htmlFor={`unit-${i}-max_soc`}>SOC maximo (fraccion 0-1)</label>
           <input
             id={`unit-${i}-max_soc`}
             type="number"
+            step="any"
+            min="0"
+            max="1"
             value={unit.max_soc}
             onChange={(e) => updateUnit(i, { max_soc: Number(e.target.value) })}
             required
           />
 
-          <label htmlFor={`unit-${i}-efficiency`}>Eficiencia</label>
+          <label htmlFor={`unit-${i}-efficiency`}>Eficiencia (fraccion 0-1)</label>
           <input
             id={`unit-${i}-efficiency`}
             type="number"
+            step="any"
+            min="0"
+            max="1"
             value={unit.efficiency}
             onChange={(e) => updateUnit(i, { efficiency: Number(e.target.value) })}
             required
@@ -140,6 +155,7 @@ export function CreateScenarioForm({ onCreated }: { onCreated: () => void }) {
               <input
                 id={`unit-${i}-charge_bid`}
                 type="number"
+                step="any"
                 value={unit.charge_bid ?? ""}
                 onChange={(e) => updateUnit(i, { charge_bid: Number(e.target.value) })}
                 required
@@ -149,6 +165,7 @@ export function CreateScenarioForm({ onCreated }: { onCreated: () => void }) {
               <input
                 id={`unit-${i}-discharge_bid`}
                 type="number"
+                step="any"
                 value={unit.discharge_bid ?? ""}
                 onChange={(e) => updateUnit(i, { discharge_bid: Number(e.target.value) })}
                 required
