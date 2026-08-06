@@ -3,7 +3,7 @@ name = "despacho-udea"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "pandas==2.2.2",
+    "pandas==2.2.3",
     "numpy==1.26.4",
     "Pyomo==6.7.3",
     "highspy==1.7.2",
@@ -16,7 +16,7 @@ dependencies = [
     "xlrd==2.0.1",
     "pydantic==2.11.10",
     "PyYAML==6.0.1",
-    "pydataxm==0.3.6",
+    "pydataxm==0.3.18",
     "fastapi==0.141.1",
     "uvicorn[standard]==0.52.1",
     "sqlalchemy==2.0.51",
