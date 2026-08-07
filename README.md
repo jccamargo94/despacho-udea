@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)
-[![Docs](https://img.shields.io/badge/docs-github%20pages-informational.svg)](https://jccamargo94.github.io/despacho-udea/)
+[![Docs](https://img.shields.io/badge/docs-github%20pages-informational.svg)](https://jccamargo94.github.io/gridforge/)
 
 Repositorio academico para aproximar el despacho electrico colombiano, comparar
 resultados contra informacion publicada por XM y estudiar el efecto de incorporar
@@ -22,7 +22,7 @@ under different market participation modes. Ships as a Python domain library +
 Typer CLI, a FastAPI backend with a polling worker, a Next.js frontend, and a
 Dockerized dev setup. Jump to [Quickstart](#quickstart) to run it locally, or
 [Repository map](#5-mapa-del-repositorio) for the layout. Full docs (Spanish)
-continue below and at the [GitHub Pages site](https://jccamargo94.github.io/despacho-udea/).
+continue below and at the [GitHub Pages site](https://jccamargo94.github.io/gridforge/).
 
 ## Quickstart
 
