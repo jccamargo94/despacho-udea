@@ -1,4 +1,4 @@
-# despacho-udea — modelo academico de despacho electrico colombiano
+# gridforge — modelo academico de despacho electrico colombiano
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)
@@ -274,8 +274,8 @@ eso los comandos usan `-f docker/...` y `--project-directory .` (ancla
 `./data`, `./.env` y el build context a la raiz en vez de a `docker/`).
 
 ```bash
-docker build -f docker/Dockerfile.cli -t despacho-udea .
-docker run --rm --entrypoint uv despacho-udea run --no-sync python -c \
+docker build -f docker/Dockerfile.cli -t gridforge .
+docker run --rm --entrypoint uv gridforge run --no-sync python -c \
   "import pyomo.environ as pyo; print('cbc', pyo.SolverFactory('cbc').available())"
 ```
 

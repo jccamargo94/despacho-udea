@@ -13,7 +13,7 @@ from app.schemas import BessScenario, DispatchLevel
 from app.storage import get_storage
 from services.api.auth import get_current_user_id
 
-app = FastAPI(title="despacho-udea API")
+app = FastAPI(title="gridforge API")
 
 _frontend_origins = [
     origin.strip() for origin in os.environ.get("FRONTEND_ORIGIN", "").split(",") if origin.strip()

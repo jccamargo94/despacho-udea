@@ -38,7 +38,7 @@ export default function SignupPage() {
           <div className="mb-3 flex size-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Zap className="size-6" />
           </div>
-          <h1 className="font-heading text-xl font-bold">Despacho-UDEA</h1>
+          <h1 className="font-heading text-xl font-bold">GridForge</h1>
           <p className="text-sm text-muted-foreground">Technical Dispatch Modeler</p>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

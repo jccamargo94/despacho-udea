@@ -14,7 +14,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "despacho-udea",
+  title: "gridforge",
   description: "Despacho electrico colombiano",
 };
 

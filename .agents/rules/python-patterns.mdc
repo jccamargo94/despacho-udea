@@ -1,9 +1,9 @@
 ---
-description: Python conventions actually used in despacho-udea (not a generic template)
+description: Python conventions actually used in gridforge (not a generic template)
 alwaysApply: true
 ---
 
-# Python — convenciones de despacho-udea
+# Python — convenciones de gridforge
 
 Estas son las convenciones **reales** de este repo, verificadas contra el
 codigo, no un template generico. Si algo aqui contradice lo que ve en el
