@@ -95,7 +95,7 @@ def run_dispatch(
     )
 
     fixed_fuel_fire = fixed_fuel_fire.rename(columns={"gen": "xm_dispatch"})
-    dispatch = dispatch.rename(columns={"dispatch": "udea_dispatch"})
+    dispatch = dispatch.rename(columns={"dispatch": "gridforge_dispatch"})
     error_mapper = {
         gen: process.extractOne(
             query=gen.lower(),
@@ -128,7 +128,7 @@ def run_dispatch(
         {
             "generador": "first",
             "datetime": "first",
-            "udea_dispatch": "sum",
+            "gridforge_dispatch": "sum",
             "generador_preideal": "first",
             "generator": "first",
             "hour": "mean",
@@ -138,7 +138,7 @@ def run_dispatch(
 
     dispatch_merged = pd.concat([dispatch_merged, fixed_proelect], axis=0)
     dispatch_merged["error"] = (
-        dispatch_merged["udea_dispatch"] - dispatch_merged["xm_dispatch"]
+        dispatch_merged["gridforge_dispatch"] - dispatch_merged["xm_dispatch"]
     )
 
     available_CC = list(chain(*CC.values()))
@@ -161,7 +161,7 @@ def run_dispatch(
             y="error",
             color="generador",
             title=f"Error de despacho por generador en el {case.dispatch_date}",
-            hover_data=["xm_dispatch", "udea_dispatch"],
+            hover_data=["xm_dispatch", "gridforge_dispatch"],
         )
         fig.write_html(
             f"data/results/error_dispatch-{case.dispatch_date}-{case.level.value}.html"

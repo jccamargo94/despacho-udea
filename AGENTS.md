@@ -44,7 +44,7 @@ archivo.
 
 ---
 
-*AGENTS.md reescrito 2026-08-05 para reflejar despacho-udea (el contenido
+*AGENTS.md reescrito 2026-08-05 para reflejar gridforge (el contenido
 previo era una plantilla de otro proyecto — referenciaba `thori-overview.mdc`,
 `thori-pr-reviewer` y convenciones de Celery/Redis, que no existen en este
 repo). FastAPI si existe desde Fase 3 (`services/api/`); Celery, Redis y

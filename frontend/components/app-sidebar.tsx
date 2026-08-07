@@ -24,7 +24,7 @@ export function AppSidebar() {
           <Zap className="size-4" />
         </div>
         <div>
-          <p className="font-heading text-sm font-bold leading-tight">Despacho-UDEA</p>
+          <p className="font-heading text-sm font-bold leading-tight">GridForge</p>
           <p className="text-xs text-muted-foreground">Technical Dispatch Modeler</p>
         </div>
       </div>

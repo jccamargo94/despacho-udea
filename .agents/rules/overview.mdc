@@ -1,9 +1,9 @@
 ---
-description: Always-on project context for despacho-udea — domain, layout, workflow, known gotchas
+description: Always-on project context for gridforge — domain, layout, workflow, known gotchas
 alwaysApply: true
 ---
 
-# despacho-udea — contexto siempre activo
+# gridforge — contexto siempre activo
 
 Modelo academico de despacho electrico colombiano (Pyomo, unit commitment),
 comparado contra datos publicados por XM, con soporte para escenarios BESS.

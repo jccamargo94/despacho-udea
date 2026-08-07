@@ -1,4 +1,4 @@
-# despacho-udea
+# gridforge
 
 Repositorio académico para aproximar el despacho eléctrico colombiano, comparar resultados contra referencias de XM y estudiar el efecto de incorporar BESS.
 
