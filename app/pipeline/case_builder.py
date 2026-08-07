@@ -24,6 +24,7 @@ from app.data.paths import resolve_input
 from app.schemas.bess import BessScenario
 from app.schemas.case import DispatchCase, DispatchLevel
 from app.schemas.input_pack import InputPack
+from app.storage import get_storage
 
 
 def bess_scenario_to_params(scenario: BessScenario) -> tuple[list[str], dict]:
@@ -71,6 +72,7 @@ def build_case(
     DISPATCH_DATE = case.dispatch_date
     DERS = ders
     dd = inputs.data_dir
+    storage = get_storage(dd)
 
     ensure_data_for_date(DISPATCH_DATE, data_dir=dd)
 
@@ -363,7 +365,7 @@ def build_case(
             ...
 
     fixed_fuel_fire_2 = fixed_fuel_fire.copy()
-    with open(f"{dd}/preideal_dispatch_map.json", "r", encoding="utf-8") as file:
+    with storage.open("preideal_dispatch_map.json", "r", encoding="utf-8") as file:
         preideal_dispatch_map = json.load(file)
     fixed_fuel_fire_2["generador_model"] = fixed_fuel_fire_2["generator"].apply(
         lambda x: preideal_dispatch_map.get(x, "")
@@ -385,7 +387,7 @@ def build_case(
         )
 
     # --- RAMPS ---
-    with open(f"{dd}/ramps.json", "r") as file:
+    with storage.open("ramps.json", "r") as file:
         ramps = json.load(file)
 
     DEMANDA = (

@@ -18,11 +18,11 @@ class LocalStorage:
         return self._resolve(path).exists()
 
     @contextmanager
-    def open(self, path: str, mode: str = "r") -> Iterator[IO]:
+    def open(self, path: str, mode: str = "r", encoding: str | None = None) -> Iterator[IO]:
         p = self._resolve(path)
         if "w" in mode or "a" in mode:
             p.parent.mkdir(parents=True, exist_ok=True)
-        f = open(p, mode)
+        f = open(p, mode, encoding=encoding)
         try:
             yield f
         finally:

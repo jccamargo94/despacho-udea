@@ -2,7 +2,17 @@ import uuid
 from datetime import date as date_
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, String
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -75,3 +85,22 @@ class MetricSet(Base):
     bess_discharge_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
     bess_avg_soc_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
     bess_net_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class InputDataset(Base):
+    __tablename__ = "input_datasets"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset", "partition_key", name="uq_input_datasets_dataset_partition_key"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_id)
+    dataset: Mapped[str] = mapped_column(String, nullable=False)
+    partition_key: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    checksum: Mapped[str | None] = mapped_column(String, nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
