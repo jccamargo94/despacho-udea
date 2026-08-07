@@ -186,7 +186,7 @@ app/
     scenarios.py     # carga escenarios BESS declarativos (scenarios/bess/*.yaml)
   schemas/           # modelos pydantic v2: DispatchCase, InputPack, RunResult, BessScenario
   storage/           # abstraccion Storage (LocalStorage hoy; GCS a futuro)
-  db/                # modelos SQLAlchemy y acceso a datos (runs, metric_sets)
+  db/                # modelos SQLAlchemy y acceso a datos (runs, metric_sets, input_datasets)
   utils/
     metrics.py      # metricas de evaluacion
     misc.py         # compatibilidad hacia app.data.download
@@ -426,6 +426,8 @@ Migraciones (requiere `DATABASE_URL` en el entorno):
 ```bash
 uv run alembic upgrade head
 ```
+
+La tabla `input_datasets` es creada por la migracion 0003 pero su logica de lectura/escritura (ingesta desde XM) aun no esta integrada en `app/`; es un artefacto fundacional de Fase 6 pendiente.
 
 Recuperacion manual de una corrida atascada: si una fila `runs` queda en
 `running` de forma permanente (p. ej. el worker murio a mitad de un solve),
